@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acceso · Tablero de notas</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/index.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Saltar al contenido</a>
+  <header><h1>Tablero de notas</h1></header>
+  <main id="main">
+    <section class="card" aria-labelledby="login-title">
+      <h2 id="login-title">Iniciar sesión</h2>
+      <form id="login-form">
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" autocomplete="username" required maxlength="254">
+        <label for="login-password">Contraseña</label>
+        <input id="login-password" type="password" autocomplete="current-password" required maxlength="128">
+        <button type="submit">Entrar</button>
+      </form>
+      <p id="login-msg" class="msg" aria-live="polite"></p>
+      <p><a href="forgot-password.html">¿Has olvidado la contraseña?</a></p>
+    </section>
+
+    <section class="card" aria-labelledby="register-title">
+      <h2 id="register-title">Crear cuenta</h2>
+      <form id="register-form">
+        <label for="register-email">Email</label>
+        <input id="register-email" type="email" autocomplete="email" required maxlength="254">
+        <label for="register-password">Contraseña</label>
+        <input id="register-password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"
+               aria-describedby="register-hint">
+        <p id="register-hint" class="hint">Entre 12 y 128 caracteres. Una frase larga es mejor que una palabra con símbolos.</p>
+        <button type="submit">Registrarme</button>
+      </form>
+      <p id="register-msg" class="msg" aria-live="polite"></p>
+    </section>
+  </main>
+</body>
+</html>

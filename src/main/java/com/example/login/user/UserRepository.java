@@ -69,6 +69,16 @@ public class UserRepository {
                 new MapSqlParameterSource().addValue("id", userId).addValue("hash", passwordHash));
     }
 
+    public void setEnabled(long userId, boolean enabled) {
+        jdbc.update("UPDATE users SET enabled = :enabled WHERE id = :id",
+                new MapSqlParameterSource().addValue("id", userId).addValue("enabled", enabled ? 1 : 0));
+    }
+
+    public void setRole(long userId, Role role) {
+        jdbc.update("UPDATE users SET role = :role WHERE id = :id",
+                new MapSqlParameterSource().addValue("id", userId).addValue("role", role.name()));
+    }
+
     public void markEmailVerified(long userId) {
         jdbc.update("UPDATE users SET email_verified = 1 WHERE id = :id", new MapSqlParameterSource("id", userId));
     }

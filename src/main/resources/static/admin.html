@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administración · Tablero de notas</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/admin.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Saltar al contenido</a>
+  <header>
+    <h1>Panel de administración</h1>
+    <nav class="row" aria-label="Navegación">
+      <a href="notes.html">Mis notas</a>
+      <button id="logout" class="secondary" type="button">Cerrar sesión</button>
+    </nav>
+  </header>
+  <main id="main">
+    <p id="msg" class="msg" aria-live="polite"></p>
+    <section class="card" aria-labelledby="users-title">
+      <h2 id="users-title">Usuarios</h2>
+      <div class="table-wrap">
+        <table>
+          <caption>Cuentas registradas</caption>
+          <thead>
+            <tr><th scope="col">Email</th><th scope="col">Rol</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr>
+          </thead>
+          <tbody id="users"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

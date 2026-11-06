@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mis notas · Tablero de notas</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/notes.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Saltar al contenido</a>
+  <header>
+    <h1>Mis notas</h1>
+    <nav class="row" aria-label="Cuenta">
+      <span id="who" class="badge"></span>
+      <a id="admin-link" href="admin.html" hidden>Panel de administración</a>
+      <button id="logout" class="secondary" type="button">Cerrar sesión</button>
+      <button id="logout-all" class="secondary" type="button">Cerrar sesión en todos los dispositivos</button>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="card" aria-labelledby="new-title">
+      <h2 id="new-title">Nueva nota</h2>
+      <form id="note-form">
+        <label for="note-title">Título</label>
+        <input id="note-title" required maxlength="100">
+        <label for="note-body">Texto</label>
+        <textarea id="note-body" maxlength="5000"></textarea>
+        <button type="submit">Guardar nota</button>
+      </form>
+      <p id="msg" class="msg" aria-live="polite"></p>
+    </section>
+
+    <section class="card" aria-labelledby="list-title">
+      <h2 id="list-title">Tus notas</h2>
+      <p id="empty" class="hint" hidden>Todavía no tienes notas.</p>
+      <ul id="notes" class="notes"></ul>
+    </section>
+  </main>
+</body>
+</html>

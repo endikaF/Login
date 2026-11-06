@@ -13,5 +13,9 @@ public enum AuditEvent {
     PASSWORD_RESET_REQUESTED,
     PASSWORD_RESET_DONE,
     PASSWORD_RESET_FAILED, // enlace inválido, caducado o ya usado
-    EMAIL_VERIFIED
+    EMAIL_VERIFIED,
+    ADMIN_USER_ENABLED,   // acciones de administración: user_id = cuenta afectada, detail = "admin=<id>"
+    ADMIN_USER_DISABLED,
+    ADMIN_ROLE_CHANGED,
+    ADMIN_FORCE_LOGOUT
 }

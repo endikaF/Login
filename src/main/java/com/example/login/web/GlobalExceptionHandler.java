@@ -2,6 +2,7 @@ package com.example.login.web;
 
 import java.util.Map;
 
+import com.example.login.admin.AdminExceptions;
 import com.example.login.auth.EmailNotVerifiedException;
 import com.example.login.auth.InvalidCredentialsException;
 import com.example.login.auth.InvalidTokenException;
@@ -15,7 +16,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -39,6 +43,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> unreadable(HttpMessageNotReadableException e) {
         return error(HttpStatus.BAD_REQUEST, "Solicitud mal formada.");
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> badParameter(MethodArgumentTypeMismatchException e) {
+        return error(HttpStatus.BAD_REQUEST, "Solicitud no válida."); // p. ej. /api/notes/abc
     }
 
     @ExceptionHandler(WeakPasswordException.class)
@@ -76,8 +85,37 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "TOO_MANY_REQUESTS", "message", "Demasiados intentos. Inténtalo más tarde."));
     }
 
+    @ExceptionHandler(AdminExceptions.SelfModificationException.class)
+    public ResponseEntity<Map<String, String>> selfModification(AdminExceptions.SelfModificationException e) {
+        return error(HttpStatus.CONFLICT, "No puedes desactivar tu cuenta ni quitarte el rol de administrador.");
+    }
+
+    @ExceptionHandler(AdminExceptions.UserNotFoundException.class)
+    public ResponseEntity<Map<String, String>> userNotFound(AdminExceptions.UserNotFoundException e) {
+        return error(HttpStatus.NOT_FOUND, "Recurso no encontrado.");
+    }
+
+    /**
+     * @PreAuthorize lanza esta excepción DENTRO del controlador, donde este @RestControllerAdvice la vería como un
+     * "Exception" cualquiera y respondería 500. Se traduce a 403 con mensaje genérico.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> denied(AccessDeniedException e) {
+        return error(HttpStatus.FORBIDDEN, "No tienes permiso para esta acción.");
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> unexpected(Exception e) {
+        // Los errores HTTP propios de Spring MVC (404, 405, 415...) no son fallos del servidor: se devuelven con
+        // su estado y un mensaje fijo, sin el texto de la excepción.
+        if (e instanceof ErrorResponse spring) {
+            HttpStatus status = HttpStatus.valueOf(spring.getStatusCode().value());
+            return error(status, switch (status) {
+                case NOT_FOUND -> "Recurso no encontrado.";
+                case METHOD_NOT_ALLOWED -> "Método no permitido.";
+                default -> "Solicitud no válida.";
+            });
+        }
         log.error("Error no controlado", e);
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "Error interno.");
     }

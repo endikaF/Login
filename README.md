@@ -4,7 +4,7 @@ Proyecto de aprendizaje: web con backend Java cuyo núcleo es la **autenticació
 multiusuario**. El tema (notas personales) solo aporta un recurso privado por usuario para poder
 probar que nadie accede a datos ajenos.
 
-**Estado:** Fase 4 de 6 completada (verificación de email y recuperación de contraseña).
+**Estado:** Fase 5 de 6 completada (roles, panel de administración, propiedad de recursos, cabeceras, CORS/CSRF y frontend).
 
 | Fase | Contenido | Estado |
 |---|---|---|
@@ -13,7 +13,7 @@ probar que nadie accede a datos ajenos.
 | 2 | Login, JWT, refresh token rotatorio, logout | Hecha |
 | 3 | Fuerza bruta, rate limiting, bloqueo, auditoría | Hecha |
 | 4 | Verificación de email y recuperación de contraseña | Hecha |
-| 5 | Roles, panel admin, propiedad, cabeceras, CORS/CSRF, frontend | Pendiente |
+| 5 | Roles, panel admin, propiedad, cabeceras, CORS/CSRF, frontend | Hecha |
 | 6 | Revisión ASVS nivel 2, README final, TOTP opcional | Pendiente |
 
 ## Stack (versiones verificadas en Maven Central el 2026-11-06)
@@ -42,7 +42,8 @@ Requisitos: JDK 21 o superior y Maven en el `PATH` (`java -version`, `mvn -v`).
    mvn spring-boot:run
    ```
    La app escucha solo en `http://127.0.0.1:8080`.
-4. Tests: `mvn verify`.
+4. Abre `http://localhost:8080` en el navegador (ver «Frontend» más abajo).
+5. Tests: `mvn verify`.
 
 ### Base de datos
 
@@ -166,20 +167,83 @@ Pedir un enlace nuevo anula los anteriores sin usar.
   (sin tokens, contraseñas ni emails).
 - **Cambio de contrato respecto a la Fase 1:** el registro pasó de `201`/`409` a `202` uniforme.
 
+## Qué hay implementado (Fase 5)
+
+### Autorización
+- **Roles `USER` y `ADMIN`** con `@EnableMethodSecurity` y `@PreAuthorize` en cada controlador protegido.
+  El panel tiene **doble barrera**: la regla de URL `/api/admin/**` → `ADMIN` en `SecurityConfig` y el
+  `@PreAuthorize("hasRole('ADMIN')")` del controlador; si una se rompe en un cambio futuro, la otra sigue protegiendo.
+  Un `USER` recibe `403` y un anónimo `401`.
+- **Propiedad del recurso (notas):** `GET/POST /api/notes` y `DELETE /api/notes/{id}`. El propietario sale **siempre
+  del token verificado**, nunca del cuerpo (un `userId` enviado por el cliente se ignora) y cada consulta lleva
+  `AND user_id = :userId`. Borrar una nota ajena y borrar una inexistente dan el **mismo 404**: no se revela que ese
+  id está en uso. Ni siquiera un administrador ve las notas de otros (previene IDOR / BOLA).
+- **Panel de administración** (`/api/admin/users`, solo `ADMIN`):
+
+  | Acción | Endpoint | Efecto |
+  |---|---|---|
+  | Listar usuarios | `GET /api/admin/users` | id, email, rol, activo, verificado, bloqueado, alta (nunca el hash) |
+  | Activar / desactivar | `POST /{id}/enabled` `{enabled}` | Al desactivar cierra sus sesiones (refresh tokens + access token) |
+  | Cambiar rol | `POST /{id}/role` `{role}` | Efecto inmediato: el rol se lee de la BD en cada petición |
+  | Forzar cierre de sesiones | `POST /{id}/logout` | Revoca todos sus refresh tokens y sube `token_version` |
+
+  **Un admin no puede desactivarse ni quitarse el rol a sí mismo** (`409`): se quedaría fuera o dejaría el sistema sin
+  administradores. Cada acción se audita (`ADMIN_USER_ENABLED`, `ADMIN_USER_DISABLED`, `ADMIN_ROLE_CHANGED`,
+  `ADMIN_FORCE_LOGOUT`) con la cuenta afectada y `detail = admin=<id>`.
+
+### Cabeceras, CORS y CSRF
+- **Cabeceras:** CSP estricta (`default-src 'none'; script-src 'self'; style-src 'self'; ...; frame-ancestors 'none'`,
+  sin `unsafe-inline`), `Strict-Transport-Security` (1 año, subdominios; solo se envía sobre HTTPS),
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y `Referrer-Policy: no-referrer`.
+- **CORS restrictivo:** el frontend se sirve desde el mismo origen que la API, así que solo se acepta el propio origen
+  (`app.base-url`) más los que se listen en `app.cors.allowed-origins` (vacío por defecto). Cualquier otro origen
+  recibe `403`, incluso en un POST «simple», y nunca se permiten credenciales.
+- **Estrategia CSRF** (el filtro CSRF de Spring está desactivado a propósito, y lo sustituyen tres capas coherentes
+  con el uso de cookies): (1) la API se autentica con `Authorization: Bearer`, que el navegador nunca adjunta solo;
+  (2) la única cookie, la del refresh token, es `SameSite=Strict` y `Path=/api/auth`, y solo la usan `/refresh` y
+  `/logout`; (3) CORS rechaza los orígenes no autorizados. Un token CSRF clásico solo haría falta con sesión por cookie.
+- **Errores:** los errores de Spring MVC (404, 405, id no numérico...) devuelven un mensaje fijo con su estado real
+  en lugar de un 500, y `AccessDeniedException` de `@PreAuthorize` se traduce a `403`. Nunca salen trazas.
+
+### Frontend
+HTML, CSS y JavaScript puros en `src/main/resources/static/`, **sin nada en línea** para cumplir la CSP
+(scripts como módulos externos, estilos en `css/style.css`).
+
+| Página | Para qué |
+|---|---|
+| `index.html` | Iniciar sesión y crear cuenta |
+| `notes.html` | Tus notas, cerrar sesión y cerrar sesión en todos los dispositivos |
+| `admin.html` | Panel de administración (solo `ADMIN`) |
+| `forgot-password.html` / `reset-password.html` / `verify-email.html` | Destinos de los enlaces del email simulado |
+
+- El **access token vive solo en una variable de memoria** (nunca en el almacenamiento del navegador): un XSS no puede
+  llevárselo para usarlo después. Al cargar cada página se recupera con la cookie HttpOnly (`/refresh`, que rota el token).
+- Los datos se pintan con `textContent`, no como HTML: una nota con `<script>` o `<img onerror>` se ve como texto.
+  Un test impide que reaparezcan `innerHTML`, `eval`, `document.write` o almacenamiento del navegador.
+- Un solo `/refresh` en vuelo por página, para que dos peticiones simultáneas no parezcan una reutilización.
+- **Accesibilidad:** `lang="es"`, enlace «Saltar al contenido», etiquetas `<label>` en todos los campos, regiones con
+  encabezados, mensajes anunciados con `aria-live` (`role="alert"` en los errores), foco visible, contraste AA en
+  claro y oscuro, diseño adaptable a móvil y tabla con `caption` y `scope`.
+- Las páginas de verificación y reseteo piden un clic o un envío de formulario en lugar de actuar al abrirse, para que
+  un antivirus o un previsualizador de enlaces no consuma el token de un solo uso. El token viaja en el fragmento de la
+  URL y se borra de la barra de direcciones al leerlo.
+
 ### Estructura
 
 ```
 src/main/java/com/example/login/
+  admin/     AdminController, AdminService, AdminRepository (vista de lectura), AdminExceptions
   audit/     AuditService, AuditEvent
   auth/      AuthController, AuthService, JwtService, JwtAuthFilter, RefreshTokenService/Repository,
              AccountRecoveryController/Service (verificación y reset), LoginRequest, AuthenticatedUser, excepciones
+  notes/     NoteController, NoteRepository (propiedad impuesta en la consulta)
   mail/      EmailService (interfaz), ConsoleEmailService (simulado), AccountMailer (textos y enlaces)
   token/     OneTimeTokenService (tokens de un solo uso)
   config/    SecurityConfig (Argon2id, cadena de filtros), AdminBootstrap
   security/  PasswordPolicy, TokenHasher (token aleatorio + SHA-256), RateLimitService, LoginAttemptService
   user/      User, Role, RegisterRequest, UserRepository (JDBC), UserService, RegistrationController, excepciones
   web/       GlobalExceptionHandler
-src/main/resources/  application.yml, schema.sql
+src/main/resources/  application.yml, schema.sql, static/ (frontend: HTML, css/, js/)
 ```
 
 ### Modelo de datos (`schema.sql`, creado entero desde la Fase 1)
@@ -192,13 +256,17 @@ los access token (cierre de sesión forzado). `audit_log` no tiene FK para sobre
 
 - **SQLite con una sola conexión** (`maximum-pool-size: 1`) porque admite un único escritor. En producción:
   PostgreSQL con pool normal. `PRAGMA foreign_keys` se activa en cada conexión vía URL del driver.
-- **CSRF desactivado a propósito:** la API se autentica con `Authorization: Bearer`, que el navegador no adjunta
-  solo. La única cookie (refresh) es `SameSite=Strict` y solo la usan `/refresh` y `/logout`. La estrategia
-  completa, con comprobación de `Origin`, se cierra en la Fase 5.
+- **CSRF desactivado a propósito**, sustituido por Bearer en cabecera + cookie `SameSite=Strict` + CORS restrictivo
+  (explicado en la Fase 5).
 - **HS256 (clave simétrica)** por simplicidad con una sola aplicación; con varios servicios se usaría RS256/EdDSA.
 - **Una consulta a BD por petición autenticada** a cambio de revocación inmediata (rol, estado y `token_version`).
 - **Dos pestañas refrescando a la vez** con el mismo token cuentan como reutilización y cierran la sesión. El
-  frontend (Fase 5) debe serializar los refresh.
+  frontend serializa los refresh dentro de cada página, pero no puede coordinar varias pestañas: es una limitación
+  conocida de rotar el refresh token en cada carga de página (una SPA con el token en memoria la reduciría).
+- **Frontend multipágina:** el access token en memoria se pierde al cambiar de página, por eso cada carga hace un
+  `/refresh`. Se prefiere esto a guardarlo en el almacenamiento del navegador, que un XSS podría leer.
+- **Sin protección de «último administrador»** más allá de la regla de autoprotección: con dos admins, uno puede
+  degradar al otro. Se considera aceptable aquí.
 - **Aviso "verifica tu email" en el login (403):** solo lo recibe quien ya acertó la contraseña, así que no permite
   enumerar cuentas; a cambio, ese usuario sabe que la cuenta existe (es la suya).
 - **Rate limiting en memoria:** se pierde al reiniciar y no se comparte entre instancias. En producción:
@@ -219,7 +287,7 @@ Nada de claves ni credenciales en el código. Todo por variables de entorno; `.e
 están en `.gitignore`. `.env.example` solo contiene marcadores, nunca valores reales.
 La contraseña del admin que uses ahora es de prueba: cámbiala por la definitiva cuando termines de revisar.
 
-## Tests (92 en total, todos en verde con `mvn verify`)
+## Tests (123 en total, todos en verde con `mvn verify`)
 
 Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
 
@@ -247,9 +315,21 @@ Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
   propósito; cuenta desactivada tras pedir el enlace); auditoría sin secretos; y límites de correo por destinatario,
   por IP y de canje de enlaces.
 
+- **Fase 5 (31):** autorización por rol (un `USER` recibe `403` en cada endpoint admin, un anónimo `401`, el rol se lee
+  de la BD y el ascenso/descenso es inmediato); panel (listado sin secretos, desactivar cierra sesiones y bloquea
+  login/refresh, cierre forzado, autoprotección del admin, ids inexistentes o entradas inválidas, auditoría exacta);
+  notas (solo ve las propias, 404 idéntico para ajena e inexistente, ni el admin accede a las de otros, el propietario
+  sale del token, validaciones, id no numérico, SQL en el título guardado como texto); cabeceras (CSP estricta,
+  HSTS sobre HTTPS, nosniff, frame-options, referrer-policy); frontend sin scripts/estilos/manejadores en línea y sin
+  APIs peligrosas; errores 404/405/415 genéricos sin filtrar internos; y CORS/CSRF (preflight y POST de origen ajeno
+  rechazados sin cookie, origen propio permitido sin credenciales, refresh/logout cross-site rechazados sin consumir el token).
+
 Los tests de rate limiting usan límites bajos y recrean el contexto tras cada test (los cubos viven en memoria);
 el resto de tests cargan límites holgados desde `src/test/resources/config/application.properties`.
 
 Verificado además a mano contra la app arrancada: login, login erróneo, refresh, logout y refresh tras logout
 (Fase 2), 5 fallos seguidos que bloquean la cuenta incluso con la contraseña correcta (Fase 3), y registro → email simulado →
-verificación → login → olvido de contraseña → reseteo → login con la nueva (Fase 4).
+verificación → login → olvido de contraseña → reseteo → login con la nueva (Fase 4), y en un navegador real
+(Chrome): login desde la interfaz, sesión recuperada al navegar, nota con `<img onerror>` y `<script>` mostrada como
+texto, panel admin con los botones de autoprotección deshabilitados y consola sin errores ni violaciones de CSP (Fase 5).
+No se ha probado en otros navegadores ni con lector de pantalla.

@@ -25,6 +25,9 @@ spring:
 app:
   # Base de los enlaces de los correos (en producción, la URL pública HTTPS).
   base-url: http://localhost:8080
+  cors:
+    # Orígenes EXTRA permitidos (lista separada por comas). Vacío = solo el propio origen (base-url).
+    allowed-origins: ""
   tokens:
     verify-email-hours: 24
     reset-minutes: 20              # dentro del rango 15-30 min: un enlace robado caduca pronto
