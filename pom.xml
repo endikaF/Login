@@ -53,6 +53,12 @@
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-oauth2-jose</artifactId>
     </dependency>
+    <!-- Rate limiting en memoria (token bucket). Versión 8.22.0 verificada en Maven Central. -->
+    <dependency>
+      <groupId>com.bucket4j</groupId>
+      <artifactId>bucket4j_jdk17-core</artifactId>
+      <version>8.22.0</version>
+    </dependency>
     <!-- Argon2PasswordEncoder de Spring Security delega en BouncyCastle (no hay Argon2 en el JDK). -->
     <dependency>
       <groupId>org.bouncycastle</groupId>

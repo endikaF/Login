@@ -28,6 +28,16 @@ app:
     access-ttl-minutes: 10
   refresh:
     ttl-days: 7
+  ratelimit:
+    # Límites en memoria (se pierden al reiniciar). Cada bucket se rellena de forma gradual.
+    login-ip-per-minute: 20        # intentos de login por IP y minuto
+    login-account-per-15min: 10    # intentos de login por cuenta (exista o no) cada 15 minutos
+    register-ip-per-hour: 10       # registros por IP y hora (Argon2 es costoso en CPU/memoria)
+    max-tracked-keys: 10000        # tope de claves en memoria: evita agotar RAM con emails/IP inventados
+  lockout:
+    max-attempts: 5                # fallos seguidos que disparan el bloqueo de la cuenta
+    base-minutes: 1                # 1.er bloqueo; se duplica en cada bloqueo sucesivo...
+    max-minutes: 30                # ...hasta este tope
   cookie:
     # Secure: la cookie solo viaja por HTTPS. Los navegadores lo aceptan también en http://localhost.
     secure: true

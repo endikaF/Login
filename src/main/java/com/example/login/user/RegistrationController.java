@@ -2,6 +2,9 @@ package com.example.login.user;
 
 import java.util.Map;
 
+import com.example.login.security.RateLimitService;
+
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
@@ -16,14 +19,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class RegistrationController {
 
     private final UserService users;
+    private final RateLimitService rateLimit;
 
-    public RegistrationController(UserService users) {
+    public RegistrationController(UserService users, RateLimitService rateLimit) {
         this.users = users;
+        this.rateLimit = rateLimit;
     }
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, String> register(@Valid @RequestBody RegisterRequest request) {
+    public Map<String, String> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
+        // Límite por IP antes de hashear: cada registro cuesta ~19 MiB y CPU de Argon2.
+        rateLimit.checkRegisterIp(http.getRemoteAddr());
         users.register(request.email(), request.password());
         // No se devuelve ningún dato del usuario (ni hash ni id): la respuesta no revela nada reutilizable.
         return Map.of("message", "Cuenta creada.");

@@ -1,0 +1,13 @@
+package com.example.login.audit;
+
+/** Eventos de seguridad registrados. Los de reset y administración se añaden en fases posteriores. */
+public enum AuditEvent {
+    LOGIN_OK,
+    LOGIN_FAILED,
+    LOGIN_BLOCKED,   // intento sobre una cuenta bloqueada temporalmente
+    ACCOUNT_LOCKED,  // el fallo que dispara el bloqueo
+    RATE_LIMITED,
+    LOGOUT,
+    LOGOUT_ALL,
+    TOKEN_REUSE      // refresh token ya rotado presentado de nuevo
+}

@@ -3,11 +3,13 @@ package com.example.login.web;
 import java.util.Map;
 
 import com.example.login.auth.InvalidCredentialsException;
+import com.example.login.security.RateLimitService;
 import com.example.login.user.EmailAlreadyRegisteredException;
 import com.example.login.user.WeakPasswordException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -51,6 +53,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> badCredentials(InvalidCredentialsException e) {
         // Mensaje idéntico para usuario inexistente, contraseña errónea o cuenta desactivada.
         return error(HttpStatus.UNAUTHORIZED, "Credenciales inválidas.");
+    }
+
+    @ExceptionHandler(RateLimitService.RateLimitedException.class)
+    public ResponseEntity<Map<String, String>> tooMany(RateLimitService.RateLimitedException e) {
+        // 429 + Retry-After estándar: el cliente legítimo sabe cuándo reintentar.
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(e.retryAfterSeconds()))
+                .body(Map.of("error", "TOO_MANY_REQUESTS", "message", "Demasiados intentos. Inténtalo más tarde."));
     }
 
     @ExceptionHandler(Exception.class)

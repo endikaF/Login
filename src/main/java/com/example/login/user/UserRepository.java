@@ -36,14 +36,38 @@ public class UserRepository {
     // El fragmento WHERE es siempre un literal del código; el valor viaja como parámetro.
     private Optional<User> findOne(String where, Object value) {
         return jdbc.query("""
-                SELECT id, email, password_hash, role, enabled, email_verified, token_version
+                SELECT id, email, password_hash, role, enabled, email_verified, token_version, locked_until
                 FROM users
                 """ + where,
                 new MapSqlParameterSource("value", value),
                 (rs, i) -> new User(rs.getLong("id"), rs.getString("email"), rs.getString("password_hash"),
                         Role.valueOf(rs.getString("role")), rs.getInt("enabled") == 1,
-                        rs.getInt("email_verified") == 1, rs.getLong("token_version")))
+                        rs.getInt("email_verified") == 1, rs.getLong("token_version"),
+                        rs.getString("locked_until") == null ? null : Instant.parse(rs.getString("locked_until"))))
                 .stream().findFirst();
+    }
+
+    /** Suma un fallo y devuelve {fallos acumulados, nivel de bloqueo actual}. Se usa dentro de una transacción. */
+    public long[] addFailedAttempt(long userId) {
+        var params = new MapSqlParameterSource("id", userId);
+        jdbc.update("UPDATE users SET failed_attempts = failed_attempts + 1 WHERE id = :id", params);
+        return jdbc.queryForObject("SELECT failed_attempts, lock_level FROM users WHERE id = :id", params,
+                (rs, i) -> new long[] {rs.getLong("failed_attempts"), rs.getLong("lock_level")});
+    }
+
+    /** Bloquea hasta {@code until}, sube el nivel (para duplicar el siguiente bloqueo) y reinicia el contador. */
+    public void lock(long userId, Instant until, long newLevel) {
+        jdbc.update("""
+                UPDATE users SET locked_until = :until, lock_level = :level, failed_attempts = 0 WHERE id = :id
+                """,
+                new MapSqlParameterSource().addValue("id", userId).addValue("until", until.toString())
+                        .addValue("level", newLevel));
+    }
+
+    /** Login correcto: se olvida todo el historial de fallos y bloqueos. */
+    public void clearLockState(long userId) {
+        jdbc.update("UPDATE users SET failed_attempts = 0, lock_level = 0, locked_until = NULL WHERE id = :id",
+                new MapSqlParameterSource("id", userId));
     }
 
     /** Invalida de golpe todos los access token del usuario (el filtro JWT compara la versión). */

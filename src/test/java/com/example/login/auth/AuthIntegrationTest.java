@@ -52,6 +52,7 @@ class AuthIntegrationTest {
 
     @BeforeEach
     void seed() {
+        jdbc.update("DELETE FROM audit_log");
         jdbc.update("DELETE FROM refresh_tokens");
         jdbc.update("DELETE FROM users");
         userService.create(EMAIL, PASSWORD, Role.USER, true);
@@ -264,6 +265,27 @@ class AuthIntegrationTest {
     @Test
     void logoutAllRequiresAuthentication() throws Exception {
         mvc.perform(post("/api/auth/logout-all")).andExpect(status().isUnauthorized());
+    }
+
+    // ---------- auditoría ----------
+
+    @Test
+    void sessionEventsAreAuditedWithoutSecrets() throws Exception {
+        MvcResult first = login(EMAIL, PASSWORD);
+        String old = refreshToken(first);
+        String current = refreshToken(refresh(old));
+        refresh(old);                                                    // reutilización
+        mvc.perform(post("/api/auth/logout").cookie(new Cookie("refresh_token", refreshToken(login(EMAIL, PASSWORD)))));
+        mvc.perform(post("/api/auth/logout-all")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(login(EMAIL, PASSWORD))));
+
+        List<String> events = jdbc.queryForList("SELECT event FROM audit_log ORDER BY id", String.class);
+        assertThat(events).contains("LOGIN_OK", "TOKEN_REUSE", "LOGOUT", "LOGOUT_ALL");
+
+        String everything = String.join("\n", jdbc.queryForList(
+                "SELECT event || '|' || ifnull(detail,'') || '|' || ifnull(ip,'') FROM audit_log", String.class));
+        assertThat(everything).doesNotContain(old).doesNotContain(current).doesNotContain(PASSWORD)
+                .doesNotContain(accessToken(first));
     }
 
     @Test

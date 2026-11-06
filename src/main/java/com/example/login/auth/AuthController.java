@@ -3,6 +3,7 @@ package com.example.login.auth;
 import java.time.Duration;
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -36,15 +37,16 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
-        return tokenResponse(auth.login(request.email(), request.password()));
+    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request,
+                                                     HttpServletRequest http) {
+        return tokenResponse(auth.login(request.email(), request.password(), http.getRemoteAddr()));
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, Object>> refresh(
-            @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
+            @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken, HttpServletRequest http) {
         try {
-            return tokenResponse(auth.refresh(refreshToken));
+            return tokenResponse(auth.refresh(refreshToken, http.getRemoteAddr()));
         } catch (InvalidRefreshTokenException e) {
             // Además de 401, se borra la cookie: ya no sirve y no tiene sentido que el navegador la siga enviando.
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -55,14 +57,15 @@ public class AuthController {
 
     /** Público a propósito: solo necesita la cookie. Siempre 204, tenga o no sesión (idempotente). */
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
-        auth.logout(refreshToken);
+    public ResponseEntity<Void> logout(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
+                                       HttpServletRequest http) {
+        auth.logout(refreshToken, http.getRemoteAddr());
         return clearedCookie();
     }
 
     @PostMapping("/logout-all")
-    public ResponseEntity<Void> logoutAll(@AuthenticationPrincipal AuthenticatedUser user) {
-        auth.logoutAll(user.id());
+    public ResponseEntity<Void> logoutAll(@AuthenticationPrincipal AuthenticatedUser user, HttpServletRequest http) {
+        auth.logoutAll(user.id(), http.getRemoteAddr());
         return clearedCookie();
     }
 

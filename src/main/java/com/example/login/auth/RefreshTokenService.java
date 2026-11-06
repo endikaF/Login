@@ -2,6 +2,7 @@ package com.example.login.auth;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.example.login.security.TokenHasher;
@@ -63,7 +64,7 @@ public class RefreshTokenService {
             // Reutilización de un token ya rotado: se invalida la familia entera. (Sin datos sensibles en el log.)
             tokens.revokeFamily(stored.familyId());
             log.warn("Reutilización de refresh token detectada: userId={} familia={}", stored.userId(), stored.familyId());
-            throw new InvalidRefreshTokenException();
+            throw new RefreshTokenReuseException(stored.userId());
         }
         if (stored.revokedAt() != null || stored.expiresAt().isBefore(Instant.now())) {
             throw new InvalidRefreshTokenException();
@@ -86,17 +87,19 @@ public class RefreshTokenService {
         if (!Boolean.TRUE.equals(rotated)) {
             tokens.revokeFamily(stored.familyId());
             log.warn("Reutilización concurrente de refresh token: userId={} familia={}", stored.userId(), stored.familyId());
-            throw new InvalidRefreshTokenException();
+            throw new RefreshTokenReuseException(stored.userId());
         }
         return new Rotation(user, next);
     }
 
     /** Logout: revoca la familia del token presentado (también los ya rotados). Idempotente y silencioso. */
-    public void revokeSession(String rawToken) {
+    public Optional<Long> revokeSession(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) {
-            return;
+            return Optional.empty();
         }
-        tokens.findByHash(TokenHasher.sha256Hex(rawToken)).ifPresent(t -> tokens.revokeFamily(t.familyId()));
+        var stored = tokens.findByHash(TokenHasher.sha256Hex(rawToken));
+        stored.ifPresent(t -> tokens.revokeFamily(t.familyId()));
+        return stored.map(RefreshTokenRepository.StoredToken::userId); // para auditar quién cerró sesión
     }
 
     /** "Cerrar sesión en todos los dispositivos": revoca todos los refresh tokens del usuario. */

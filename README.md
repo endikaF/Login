@@ -4,14 +4,14 @@ Proyecto de aprendizaje: web con backend Java cuyo núcleo es la **autenticació
 multiusuario**. El tema (notas personales) solo aporta un recurso privado por usuario para poder
 probar que nadie accede a datos ajenos.
 
-**Estado:** Fase 2 de 6 completada (login, JWT de vida corta, refresh token rotatorio, logout).
+**Estado:** Fase 3 de 6 completada (rate limiting, bloqueo progresivo de cuentas y auditoría).
 
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Diseño, modelo de datos, amenazas | Hecha |
 | 1 | Scaffolding, SQLite + JDBC, registro, Argon2id | Hecha |
 | 2 | Login, JWT, refresh token rotatorio, logout | Hecha |
-| 3 | Fuerza bruta, rate limiting, bloqueo, auditoría | Pendiente |
+| 3 | Fuerza bruta, rate limiting, bloqueo, auditoría | Hecha |
 | 4 | Verificación de email y recuperación de contraseña | Pendiente |
 | 5 | Roles, panel admin, propiedad, cabeceras, CORS/CSRF, frontend | Pendiente |
 | 6 | Revisión ASVS nivel 2, README final, TOTP opcional | Pendiente |
@@ -23,6 +23,7 @@ probar que nadie accede a datos ajenos.
 - SQLite con `sqlite-jdbc` **3.54.1.0**, acceso solo por `JdbcTemplate`/`NamedParameterJdbcTemplate` (sin JPA)
 - BouncyCastle `bcprov-jdk18on` **1.86** (necesario para `Argon2PasswordEncoder`; el JDK no incluye Argon2)
 - `spring-security-oauth2-jose` (versión gestionada por Spring Boot) para firmar y validar JWT con Nimbus, sin criptografía casera
+- Bucket4j `bucket4j_jdk17-core` **8.22.0** (verificada en Maven Central) para el rate limiting en memoria
 
 ## Ejecución en Windows
 
@@ -99,14 +100,39 @@ o usa el navegador (`fetch` siempre envía UTF-8).
 - **401 sin pistas:** una petición sin identidad válida recibe 401 con cuerpo vacío; no se dice si el token
   estaba caducado, manipulado o revocado.
 
+## Qué hay implementado (Fase 3)
+
+- **Rate limiting por IP y por cuenta** (Bucket4j, algoritmo token bucket, en memoria). Se aplica antes de tocar
+  la BD o Argon2, que es lo caro. Superado el límite: `429` con cabecera `Retry-After` y mensaje genérico.
+
+  | Límite | Valor por defecto | Propiedad |
+  |---|---|---|
+  | Login por IP | 20 / minuto | `app.ratelimit.login-ip-per-minute` |
+  | Login por cuenta | 10 / 15 min | `app.ratelimit.login-account-per-15min` |
+  | Registro por IP | 10 / hora | `app.ratelimit.register-ip-per-hour` |
+
+  El límite por cuenta cuenta también los emails que no existen, así que no revela qué cuentas hay.
+  El mapa de cubos tiene un tope (10 000 claves, LRU) para que nadie agote la memoria inventando emails.
+- **Bloqueo temporal progresivo:** 5 fallos de contraseña seguidos bloquean la cuenta 1 minuto; el siguiente
+  bloqueo dura 2, luego 4... hasta 30 minutos (`app.lockout.*`). Un login correcto reinicia contador y nivel.
+  El estado está en la BD (`failed_attempts`, `lock_level`, `locked_until`), así que sobrevive a reinicios.
+  Con la cuenta bloqueada se rechaza **incluso la contraseña correcta**, con la misma respuesta genérica
+  `401 Credenciales inválidas.` que un usuario inexistente o una contraseña errónea.
+- **Auditoría** en la tabla `audit_log` (fecha, evento, id de usuario, IP, detalle fijo). Eventos: `LOGIN_OK`,
+  `LOGIN_FAILED`, `LOGIN_BLOCKED`, `ACCOUNT_LOCKED`, `RATE_LIMITED`, `LOGOUT`, `LOGOUT_ALL`, `TOKEN_REUSE`.
+  Nunca se guardan contraseñas, tokens, hashes ni el email tecleado en un intento fallido; el detalle es un
+  literal del código (no texto del usuario), lo que impide inyectar líneas falsas en el rastro.
+  Para consultarla, abre `data/app.db` con SQLiteMan: `SELECT * FROM audit_log ORDER BY id DESC;`
+
 ### Estructura
 
 ```
 src/main/java/com/example/login/
+  audit/     AuditService, AuditEvent
   auth/      AuthController, AuthService, JwtService, JwtAuthFilter, RefreshTokenService/Repository,
              LoginRequest, AuthenticatedUser, excepciones
   config/    SecurityConfig (Argon2id, cadena de filtros), AdminBootstrap
-  security/  PasswordPolicy, TokenHasher (token aleatorio + SHA-256)
+  security/  PasswordPolicy, TokenHasher (token aleatorio + SHA-256), RateLimitService, LoginAttemptService
   user/      User, Role, RegisterRequest, UserRepository (JDBC), UserService, RegistrationController, excepciones
   web/       GlobalExceptionHandler
 src/main/resources/  application.yml, schema.sql
@@ -130,6 +156,15 @@ los access token (cierre de sesión forzado). `audit_log` no tiene FK para sobre
 - **Dos pestañas refrescando a la vez** con el mismo token cuentan como reutilización y cierran la sesión. El
   frontend (Fase 5) debe serializar los refresh.
 - **El login aún no exige email verificado:** se aplicará en la Fase 4, cuando exista la verificación.
+- **Rate limiting en memoria:** se pierde al reiniciar y no se comparte entre instancias. En producción:
+  Bucket4j sobre Redis, o límites en el proxy/gateway.
+- **IP del cliente = `getRemoteAddr()`**, sin confiar en `X-Forwarded-For` (cualquiera puede falsearla). Detrás de un
+  proxy habría que configurar las cabeceras de confianza explícitamente.
+- **Bloqueo de cuenta = posible denegación de servicio dirigida:** un atacante puede bloquear a propósito a una
+  víctima. Se mitiga con bloqueos cortos, progresivos y con tope; la alternativa (CAPTCHA, bloqueo por IP+cuenta) queda fuera.
+- **Pequeña diferencia de tiempo residual:** un usuario existente con contraseña errónea hace unas escrituras en BD
+  más que uno inexistente (milisegundos frente a las decenas de ms de Argon2).
+- **Si falla la escritura de auditoría, falla la petición** (no se traga el error): preferimos no operar sin rastro.
 - **Refresh token con caducidad deslizante de 7 días** y sin límite absoluto de la familia; en producción se añadiría un tope.
 - **Registro con email duplicado → 409 genérico.** Permite saber si un email existe. Es una simplificación
   temporal: en la Fase 4, con el email de verificación, se responderá igual en ambos casos.
@@ -141,7 +176,7 @@ Nada de claves ni credenciales en el código. Todo por variables de entorno; `.e
 están en `.gitignore`. `.env.example` solo contiene marcadores, nunca valores reales.
 La contraseña del admin que uses ahora es de prueba: cámbiala por la definitiva cuando termines de revisar.
 
-## Tests (48 en total, todos en verde con `mvn verify`)
+## Tests (70 en total, todos en verde con `mvn verify`)
 
 Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
 
@@ -154,4 +189,14 @@ Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
   desactivado; rol leído de la BD; rotación; reutilización que revoca la familia sin afectar a otro dispositivo;
   refresh caducado/desconocido/ausente; logout (incluye tokens ya rotados); `logout-all` que invalida también los JWT.
 
-Verificado además a mano contra la app arrancada: login, login erróneo, refresh, logout y refresh tras logout.
+- **Fase 3 (22):** cubos de Bucket4j (capacidad, `Retry-After`, claves independientes, memoria acotada); duración
+  del bloqueo (se duplica, con tope y sin desbordar); bloqueo tras 5 fallos que rechaza la contraseña correcta;
+  respuesta idéntica para cuenta bloqueada, contraseña errónea y usuario inexistente; bloqueos progresivos de 1 y
+  2 minutos; reinicio tras login correcto; aislamiento entre cuentas; límite por cuenta (existente o no), por IP y
+  de registro con `429`; y auditoría sin contraseñas, tokens ni emails tecleados.
+
+Los tests de rate limiting usan límites bajos y recrean el contexto tras cada test (los cubos viven en memoria);
+el resto de tests cargan límites holgados desde `src/test/resources/config/application.properties`.
+
+Verificado además a mano contra la app arrancada: login, login erróneo, refresh, logout y refresh tras logout
+(Fase 2), y 5 fallos seguidos que bloquean la cuenta incluso con la contraseña correcta (Fase 3).
