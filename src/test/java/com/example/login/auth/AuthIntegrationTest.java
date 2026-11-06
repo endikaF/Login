@@ -237,6 +237,31 @@ class AuthIntegrationTest {
         assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
     }
 
+    // ---------- vida absoluta de la sesión ----------
+
+    @Test
+    void sessionOlderThanTheAbsoluteLimitCannotBeRenewedEvenIfTheTokenHasNotExpired() throws Exception {
+        String raw = refreshToken(login(EMAIL, PASSWORD));
+        // La sesión empezó hace 31 días (límite: 30) pero este token, renovado hace poco, aún no ha caducado.
+        jdbc.update("UPDATE refresh_tokens SET created_at = ?", Instant.now().minus(java.time.Duration.ofDays(31)).toString());
+
+        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM refresh_tokens WHERE revoked_at IS NULL",
+                Integer.class)).isZero();
+    }
+
+    @Test
+    void renewedTokenNeverOutlivesTheEndOfTheSession() throws Exception {
+        String raw = refreshToken(login(EMAIL, PASSWORD));
+        jdbc.update("UPDATE refresh_tokens SET created_at = ?", Instant.now().minus(java.time.Duration.ofDays(29)).toString());
+
+        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(200);
+        Instant newExpiry = Instant.parse(jdbc.queryForObject(
+                "SELECT expires_at FROM refresh_tokens WHERE rotated_at IS NULL", String.class));
+        // Quedaba 1 día de sesión: el token nuevo caduca en ~1 día, no en los 7 de la caducidad deslizante.
+        assertThat(newExpiry).isBefore(Instant.now().plus(java.time.Duration.ofDays(2)));
+    }
+
     // ---------- logout ----------
 
     @Test

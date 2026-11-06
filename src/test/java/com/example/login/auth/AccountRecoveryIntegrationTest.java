@@ -224,6 +224,18 @@ class AccountRecoveryIntegrationTest {
     }
 
     @Test
+    void passwordChangeSendsANotificationWithoutAnySecret() throws Exception {
+        userService.create(EMAIL, PASSWORD, Role.USER, true);
+        forgot(EMAIL);
+        String token = mail.lastToken();
+        assertThat(reset(token, NEW_PASSWORD)).isEqualTo(200);
+
+        assertThat(mail.last().to()).isEqualTo(EMAIL);
+        assertThat(mail.last().subject()).isEqualTo("Tu contraseña ha cambiado");
+        assertThat(mail.last().body()).doesNotContain("#token=").doesNotContain(token).doesNotContain(NEW_PASSWORD);
+    }
+
+    @Test
     void resetRevokesEverySessionAndAccessToken() throws Exception {
         userService.create(EMAIL, PASSWORD, Role.USER, true);
         MvcResult session = login(PASSWORD);

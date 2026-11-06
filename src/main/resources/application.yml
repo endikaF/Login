@@ -25,6 +25,7 @@ spring:
 app:
   # Base de los enlaces de los correos (en producción, la URL pública HTTPS).
   base-url: http://localhost:8080
+  max-body-bytes: 65536            # tope de cuerpo de las peticiones a /api/** (64 KB)
   cors:
     # Orígenes EXTRA permitidos (lista separada por comas). Vacío = solo el propio origen (base-url).
     allowed-origins: ""
@@ -35,7 +36,8 @@ app:
     # Vida corta: si un access token se roba, caduca pronto. No se puede revocar antes salvo con token_version.
     access-ttl-minutes: 10
   refresh:
-    ttl-days: 7
+    ttl-days: 7                    # caducidad deslizante de cada refresh token
+    max-session-days: 30           # vida ABSOLUTA de una sesión: pasado este tiempo hay que volver a iniciar sesión
   ratelimit:
     # Límites en memoria (se pierden al reiniciar). Cada bucket se rellena de forma gradual.
     login-ip-per-minute: 20        # intentos de login por IP y minuto

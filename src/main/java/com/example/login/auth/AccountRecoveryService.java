@@ -79,9 +79,9 @@ public class AccountRecoveryService {
         PasswordPolicy.validate(newPassword);
         String hash = encoder.encode(newPassword); // fuera de la transacción: Argon2 es lento y SQLite tiene un solo escritor
 
-        Long userId;
+        User changed;
         try {
-            userId = tx.execute(status -> {
+            changed = tx.execute(status -> {
                 long id = tokens.consume(rawToken, Purpose.RESET_PASSWORD).orElseThrow(InvalidTokenException::new);
                 User user = users.findById(id).filter(User::enabled).orElseThrow(InvalidTokenException::new);
                 users.updatePassword(user.id(), hash);
@@ -92,13 +92,14 @@ public class AccountRecoveryService {
                 users.incrementTokenVersion(user.id()); // los access token vigentes dejan de valer
                 attempts.recordSuccess(user.id());      // limpia también fallos y bloqueos acumulados
                 tokens.invalidateAll(user.id(), Purpose.RESET_PASSWORD);
-                return user.id();
+                return user;
             });
         } catch (InvalidTokenException e) {
             audit.record(AuditEvent.PASSWORD_RESET_FAILED, null, ip, "invalid_token");
             throw e;
         }
-        audit.record(AuditEvent.PASSWORD_RESET_DONE, userId, ip, null);
+        audit.record(AuditEvent.PASSWORD_RESET_DONE, changed.id(), ip, null);
+        mailer.sendPasswordChanged(changed.email()); // fuera de la transacción: el envío no debe retenerla
     }
 
     public void verifyEmail(String rawToken, String ip) {

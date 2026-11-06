@@ -42,6 +42,19 @@ public class AccountMailer {
                 Si no lo has pedido tú, ignora este mensaje: tu contraseña no cambiará.""".formatted(baseUrl, token));
     }
 
+    /** Aviso tras cambiar la contraseña: si no fue el titular, se entera enseguida de que alguien accedió a su correo. */
+    public void sendPasswordChanged(String to) {
+        email.send(to, "Tu contraseña ha cambiado", """
+                Hola,
+
+                La contraseña de tu cuenta se acaba de cambiar y se han cerrado todas tus sesiones.
+                Si no fuiste tú, recupera el acceso cuanto antes desde:
+
+                %s/forgot-password.html
+
+                y revisa la seguridad de tu correo.""".formatted(baseUrl));
+    }
+
     /** Se envía al registrarse con un email que ya tiene cuenta; así el formulario responde igual en ambos casos. */
     public void sendAlreadyRegistered(String to) {
         email.send(to, "Ya tienes una cuenta", """

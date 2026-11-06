@@ -45,6 +45,13 @@ public class RefreshTokenRepository {
                         parse(rs.getString("revoked_at")))).stream().findFirst();
     }
 
+    /** Momento en que empezó la sesión (login): el primer token de la familia. */
+    public Optional<Instant> familyStart(String familyId) {
+        return jdbc.query("SELECT created_at FROM refresh_tokens WHERE family_id = :family ORDER BY id LIMIT 1",
+                new MapSqlParameterSource("family", familyId), (rs, i) -> Instant.parse(rs.getString("created_at")))
+                .stream().findFirst();
+    }
+
     /**
      * Marca el token como usado, de forma atómica: el UPDATE solo afecta a la fila si nadie lo rotó
      * ni revocó antes. Devuelve false si otra petición se adelantó (dos usos del mismo token = reutilización).

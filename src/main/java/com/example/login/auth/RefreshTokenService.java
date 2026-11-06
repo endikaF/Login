@@ -33,13 +33,16 @@ public class RefreshTokenService {
     private final UserRepository users;
     private final TransactionTemplate tx;
     private final Duration ttl;
+    private final Duration maxSession;
 
     public RefreshTokenService(RefreshTokenRepository tokens, UserRepository users, TransactionTemplate tx,
-                               @Value("${app.refresh.ttl-days}") long ttlDays) {
+                               @Value("${app.refresh.ttl-days}") long ttlDays,
+                               @Value("${app.refresh.max-session-days}") long maxSessionDays) {
         this.tokens = tokens;
         this.users = users;
         this.tx = tx;
         this.ttl = Duration.ofDays(ttlDays);
+        this.maxSession = Duration.ofDays(maxSessionDays);
     }
 
     public Duration ttl() {
@@ -74,6 +77,18 @@ public class RefreshTokenService {
             tokens.revokeFamily(stored.familyId());
             throw new InvalidRefreshTokenException();
         }
+        // Vida absoluta de la sesión: la caducidad deslizante sola permitiría mantener una sesión robada
+        // indefinidamente renovándola. Pasado el máximo, hay que volver a introducir la contraseña.
+        Instant sessionEnd = tokens.familyStart(stored.familyId()).orElse(Instant.now()).plus(maxSession);
+        if (!sessionEnd.isAfter(Instant.now())) {
+            tokens.revokeFamily(stored.familyId());
+            throw new InvalidRefreshTokenException();
+        }
+        Instant nextExpiry = Instant.now().plus(ttl);
+        if (nextExpiry.isAfter(sessionEnd)) {
+            nextExpiry = sessionEnd; // el token nuevo nunca vive más allá del final absoluto de la sesión
+        }
+        final Instant expiry = nextExpiry;
 
         String next = TokenHasher.newToken();
         // Transacción corta y solo con las dos escrituras: SQLite tiene un único escritor.
@@ -81,7 +96,7 @@ public class RefreshTokenService {
             if (!tokens.markRotated(stored.id())) {
                 return false; // otra petición lo consumió justo antes: mismo caso que reutilización
             }
-            tokens.insert(stored.userId(), stored.familyId(), TokenHasher.sha256Hex(next), Instant.now().plus(ttl));
+            tokens.insert(stored.userId(), stored.familyId(), TokenHasher.sha256Hex(next), expiry);
             return true;
         });
         if (!Boolean.TRUE.equals(rotated)) {

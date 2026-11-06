@@ -4,7 +4,8 @@ Proyecto de aprendizaje: web con backend Java cuyo núcleo es la **autenticació
 multiusuario**. El tema (notas personales) solo aporta un recurso privado por usuario para poder
 probar que nadie accede a datos ajenos.
 
-**Estado:** Fase 5 de 6 completada (roles, panel de administración, propiedad de recursos, cabeceras, CORS/CSRF y frontend).
+**Estado:** Fase 6 de 6 completada salvo el segundo factor TOTP, que es opcional y está pendiente de decisión.
+La revisión de seguridad (OWASP ASVS 4.0 nivel 2) está en [SECURITY-REVIEW.md](SECURITY-REVIEW.md), con sus límites y los huecos conocidos.
 
 | Fase | Contenido | Estado |
 |---|---|---|
@@ -14,7 +15,7 @@ probar que nadie accede a datos ajenos.
 | 3 | Fuerza bruta, rate limiting, bloqueo, auditoría | Hecha |
 | 4 | Verificación de email y recuperación de contraseña | Hecha |
 | 5 | Roles, panel admin, propiedad, cabeceras, CORS/CSRF, frontend | Hecha |
-| 6 | Revisión ASVS nivel 2, README final, TOTP opcional | Pendiente |
+| 6 | Revisión ASVS nivel 2, README final, TOTP opcional | Revisión y README hechos; TOTP pendiente |
 
 ## Stack (versiones verificadas en Maven Central el 2026-11-06)
 
@@ -27,23 +28,67 @@ probar que nadie accede a datos ajenos.
 
 ## Ejecución en Windows
 
-Requisitos: JDK 21 o superior y Maven en el `PATH` (`java -version`, `mvn -v`).
+### Requisitos
+- **JDK 21 o superior** y **Maven 3.9+** en el `PATH`. Compruébalo en PowerShell:
+  ```powershell
+  java -version
+  mvn -v
+  ```
+  El proyecto se compila con `release 21`, así que también funciona con un JDK más nuevo (se ha probado con el 23).
+- Un navegador moderno (probado en Chrome). No hace falta instalar ninguna base de datos ni Docker.
 
-1. Copia `.env.example` a `.env` (está en `.gitignore`, **nunca se sube**):
+### Puesta en marcha
+1. **Crea tu `.env`** (está en `.gitignore`, **nunca se sube a git**):
    ```powershell
    Copy-Item .env.example .env
    ```
-2. Edita `.env` y rellena (Spring lo carga solo si existe):
-   - `ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 12 caracteres). Sin ellas no se crea administrador.
-   - `JWT_SECRET`, **obligatoria**: sin ella (o con menos de 32 caracteres) la app no arranca.
-     Genérala con `openssl rand -base64 48` (Git Bash). Si la cambias, los access token emitidos dejan de valer.
-3. Arranca:
+2. **Rellénalo** con el Bloc de notas u otro editor (Spring lo carga solo si existe, desde la carpeta del proyecto):
+   - `ADMIN_EMAIL` y `ADMIN_PASSWORD`: primer administrador (mínimo 12 caracteres). Se crea al arrancar si no
+     existe. Sin estas variables no se crea ninguno. Una vez creado puedes borrar la contraseña del `.env`.
+   - `JWT_SECRET`: **obligatoria**. Sin ella, o con menos de 32 caracteres, la app se niega a arrancar.
+     Genera una aleatoria en PowerShell (usa el generador criptográfico del sistema) y pégala:
+     ```powershell
+     $b = New-Object byte[] 48; [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+     ```
+     Si la cambias, todos los access token emitidos dejan de valer.
+3. **Arranca** desde la carpeta del proyecto:
    ```powershell
    mvn spring-boot:run
    ```
-   La app escucha solo en `http://127.0.0.1:8080`.
-4. Abre `http://localhost:8080` en el navegador (ver «Frontend» más abajo).
-5. Tests: `mvn verify`.
+   Espera a ver `Started LoginApplication`. La app escucha solo en `http://127.0.0.1:8080`. Para pararla, `Ctrl+C`.
+4. **Abre** `http://localhost:8080` en el navegador.
+5. **Cuenta de prueba normal:** regístrate en la web. Como el email es simulado, el enlace de verificación aparece
+   **en la consola donde corre la app**, bajo `EMAIL SIMULADO`. Cópialo y ábrelo en el navegador; pulsa
+   «Verificar mi email». El de recuperar contraseña funciona igual.
+6. **Tests:** `mvn verify` (usa archivos SQLite temporales en `target/`, no toca tu `data/app.db`).
+
+### Alternativas
+- **Sin `.env`**, con variables de entorno de la sesión de PowerShell:
+  ```powershell
+  $env:JWT_SECRET = "<tu clave>"; $env:ADMIN_EMAIL = "admin@example.com"; $env:ADMIN_PASSWORD = "<tu contraseña>"
+  mvn spring-boot:run
+  ```
+- **Como JAR:** `mvn -DskipTests package` y después, desde la carpeta del proyecto (para que encuentre `.env` y `data/`):
+  ```powershell
+  java -jar target\login-0.1.0-SNAPSHOT.jar
+  ```
+
+### Problemas frecuentes
+| Síntoma | Causa y solución |
+|---|---|
+| `JWT_SECRET no definida o demasiado corta` | Falta en `.env` o tiene menos de 32 caracteres (ver paso 2) |
+| `Port 8080 was already in use` | Hay otra instancia en marcha. Ciérrala o cambia `server.port` en `application.yml` |
+| Al registrarme no recibo el correo | Es simulado: está en la consola de la app, no en tu bandeja |
+| «Debes verificar tu email» al entrar | Abre primero el enlace de verificación de la consola |
+| Tras fallar la contraseña 5 veces no me deja entrar | Bloqueo temporal (1, 2, 4... hasta 30 min); espera o resetea la contraseña. Para quien se bloquea en desarrollo: reinicia con la BD vacía |
+| `database is locked` al abrir `data/app.db` | SQLite admite un solo escritor: cierra SQLiteMan o ábrelo en solo lectura mientras la app corre |
+| El navegador no guarda la sesión | La cookie lleva `Secure`: Chrome, Edge y Firefox la aceptan en `http://localhost`, **Safari no**. Solo para desarrollo se puede arrancar con `$env:APP_COOKIE_SECURE="false"` |
+| Los acentos salen mal en la consola | Es solo la codificación de la consola de Windows; no afecta a los datos |
+| Quiero empezar de cero | Para la app y borra la carpeta `data\`; se regenera sola vacía en el siguiente arranque |
+
+### HTTPS
+La app habla HTTP en local. Para un uso real debe ir detrás de un proxy inverso con TLS (y configurar las cabeceras
+`X-Forwarded-*`). Eso no está incluido; es el hueco de «comunicaciones» en [SECURITY-REVIEW.md](SECURITY-REVIEW.md).
 
 ### Base de datos
 
@@ -287,7 +332,22 @@ Nada de claves ni credenciales en el código. Todo por variables de entorno; `.e
 están en `.gitignore`. `.env.example` solo contiene marcadores, nunca valores reales.
 La contraseña del admin que uses ahora es de prueba: cámbiala por la definitiva cuando termines de revisar.
 
-## Tests (123 en total, todos en verde con `mvn verify`)
+## Fase 6 · Revisión de seguridad
+
+Resumen (detalle, evidencias y huecos en [SECURITY-REVIEW.md](SECURITY-REVIEW.md)): la revisión contra ASVS 4.0 nivel 2
+es una **autorrevisión**, no una auditoría independiente, y no incluye análisis de dependencias ni escáneres. Encontró
+y corrigió tres cosas:
+
+- **Límite de tamaño de las peticiones** (`RequestSizeFilter`, 64 KB por defecto, `app.max-body-bytes`): un JSON de
+  3 MB se leía entero antes de rechazarse. Ahora responde `413`, y `411` si el cuerpo no declara tamaño (`chunked`).
+- **Vida absoluta de la sesión** (`app.refresh.max-session-days`, 30): la caducidad deslizante permitía mantener una
+  sesión robada para siempre renovándola. El token nuevo nunca vive más que el final de la sesión.
+- **Aviso por email al cambiar la contraseña**, sin ningún secreto en el mensaje.
+
+Huecos que quedan abiertos y asumidos: contraseñas filtradas sin comprobar, sin segundo factor, sin TLS propio, BD sin
+cifrar, sin limpieza de datos caducados y sin análisis de CVE de dependencias.
+
+## Tests (129 en total, todos en verde con `mvn verify`)
 
 Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
 
@@ -324,6 +384,10 @@ Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
   APIs peligrosas; errores 404/405/415 genéricos sin filtrar internos; y CORS/CSRF (preflight y POST de origen ajeno
   rechazados sin cookie, origen propio permitido sin credenciales, refresh/logout cross-site rechazados sin consumir el token).
 
+- **Fase 6 (6):** sesión que supera los 30 días no se puede renovar aunque su token siga vigente; el token renovado no
+  supera el final de la sesión; aviso de cambio de contraseña sin secretos; cuerpo de más de 64 KB → 413; `chunked` → 411;
+  peticiones normales y GET sin afectar.
+
 Los tests de rate limiting usan límites bajos y recrean el contexto tras cada test (los cubos viven en memoria);
 el resto de tests cargan límites holgados desde `src/test/resources/config/application.properties`.
 
@@ -332,4 +396,5 @@ Verificado además a mano contra la app arrancada: login, login erróneo, refres
 verificación → login → olvido de contraseña → reseteo → login con la nueva (Fase 4), y en un navegador real
 (Chrome): login desde la interfaz, sesión recuperada al navegar, nota con `<img onerror>` y `<script>` mostrada como
 texto, panel admin con los botones de autoprotección deshabilitados y consola sin errores ni violaciones de CSP (Fase 5).
+Los límites de tamaño (413 y 411) se comprobaron también contra el servidor real (Fase 6).
 No se ha probado en otros navegadores ni con lector de pantalla.
