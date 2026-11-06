@@ -13,6 +13,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -34,6 +35,9 @@ public class JwtService {
 
     static final String ISSUER = "login-app";
     static final int MIN_SECRET_LENGTH = 32; // 256 bits: tamaño mínimo recomendado para HS256
+    static final String TYPE_ACCESS = "access";
+    static final String TYPE_MFA = "mfa";
+    static final Duration MFA_TTL = Duration.ofMinutes(5);
 
     private final NimbusJwtEncoder encoder;
     private final NimbusJwtDecoder decoder;
@@ -66,15 +70,43 @@ public class JwtService {
 
     // Visible para que los tests puedan fabricar tokens ya caducados.
     String issue(long userId, long tokenVersion, Instant issuedAt) {
+        return build(userId, tokenVersion, issuedAt, accessTtl, TYPE_ACCESS);
+    }
+
+    /**
+     * Token del segundo paso del login: se entrega tras acertar la contraseña de un usuario con 2FA y solo sirve
+     * para /login/totp. Vive 5 minutos. Lleva typ=mfa, de modo que NO es aceptado como access token (el filtro
+     * exige typ=access): acertar solo la contraseña no da acceso a nada.
+     */
+    public String issueMfa(long userId, long tokenVersion) {
+        return build(userId, tokenVersion, Instant.now(), MFA_TTL, TYPE_MFA);
+    }
+
+    String issueMfa(long userId, long tokenVersion, Instant issuedAt) {
+        return build(userId, tokenVersion, issuedAt, MFA_TTL, TYPE_MFA);
+    }
+
+    /** @throws JwtException si la firma/caducidad fallan o si el token no es de tipo mfa. */
+    public Jwt decodeMfa(String token) {
+        Jwt jwt = decode(token);
+        if (!TYPE_MFA.equals(jwt.getClaimAsString("typ"))) {
+            throw new BadJwtException("no es un token mfa");
+        }
+        return jwt;
+    }
+
+    private String build(long userId, long tokenVersion, Instant issuedAt, Duration ttl, String type) {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)
                 .subject(Long.toString(userId))
                 .issuedAt(issuedAt)
-                .expiresAt(issuedAt.plus(accessTtl))
+                .expiresAt(issuedAt.plus(ttl))
                 .id(UUID.randomUUID().toString())
                 // "ver" se compara con users.token_version en cada petición. El rol NO va en el token:
                 // se lee de la BD, así un cambio de rol o una desactivación surten efecto al instante.
                 .claim("ver", tokenVersion)
+                // "typ" impide usar un token de un propósito en otro (access ↔ mfa).
+                .claim("typ", type)
                 .build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();

@@ -2,6 +2,10 @@ import { errorText, say, setAccessToken } from './api.js';
 
 const loginForm = document.getElementById('login-form');
 const loginMsg = document.getElementById('login-msg');
+const mfaSection = document.getElementById('mfa-section');
+const mfaForm = document.getElementById('mfa-form');
+const mfaMsg = document.getElementById('mfa-msg');
+let mfaToken = null;
 const registerForm = document.getElementById('register-form');
 const registerMsg = document.getElementById('register-msg');
 
@@ -22,11 +26,34 @@ loginForm.addEventListener('submit', async (event) => {
     password: document.getElementById('login-password').value,
   });
   if (response.ok) {
-    setAccessToken((await response.json()).accessToken);
+    const data = await response.json();
+    if (data.mfaRequired) {
+      // Contraseña correcta, pero hace falta el segundo factor. El token temporal solo vive en memoria.
+      mfaToken = data.mfaToken;
+      loginForm.reset();
+      loginForm.hidden = true;
+      mfaSection.hidden = false;
+      say(loginMsg, '', 'ok');
+      document.getElementById('mfa-code').focus();
+      return;
+    }
+    setAccessToken(data.accessToken);
     location.assign('notes.html'); // la cookie del refresh ya está fijada; la página siguiente recupera el token
     return;
   }
   say(loginMsg, await errorText(response, 'No se pudo iniciar sesión.'), 'error');
+});
+
+mfaForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  say(mfaMsg, 'Comprobando…', 'ok');
+  const response = await post('/api/auth/login/totp', { mfaToken, code: document.getElementById('mfa-code').value });
+  if (response.ok) {
+    setAccessToken((await response.json()).accessToken);
+    location.assign('notes.html');
+    return;
+  }
+  say(mfaMsg, await errorText(response, 'Código incorrecto o caducado. Vuelve a iniciar sesión.'), 'error');
 });
 
 registerForm.addEventListener('submit', async (event) => {

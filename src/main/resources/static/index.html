@@ -25,6 +25,16 @@
       <p><a href="forgot-password.html">¿Has olvidado la contraseña?</a></p>
     </section>
 
+    <section id="mfa-section" class="card" aria-labelledby="mfa-title" hidden>
+      <h2 id="mfa-title">Verificación en dos pasos</h2>
+      <form id="mfa-form">
+        <label for="mfa-code">Código de tu app de autenticación (6 dígitos) o código de recuperación</label>
+        <input id="mfa-code" autocomplete="one-time-code" required maxlength="40">
+        <button type="submit">Verificar</button>
+      </form>
+      <p id="mfa-msg" class="msg" aria-live="polite"></p>
+    </section>
+
     <section class="card" aria-labelledby="register-title">
       <h2 id="register-title">Crear cuenta</h2>
       <form id="register-form">

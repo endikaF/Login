@@ -8,6 +8,7 @@ import com.example.login.admin.AdminRepository.AdminUserView;
 import com.example.login.audit.AuditEvent;
 import com.example.login.audit.AuditService;
 import com.example.login.auth.RefreshTokenService;
+import com.example.login.totp.TotpService;
 import com.example.login.user.Role;
 import com.example.login.user.UserRepository;
 
@@ -26,9 +27,11 @@ public class AdminService {
     private final RefreshTokenService refreshTokens;
     private final AuditService audit;
     private final TransactionTemplate tx;
+    private final TotpService totp;
 
     public AdminService(AdminRepository view, UserRepository users, RefreshTokenService refreshTokens,
-                        AuditService audit, TransactionTemplate tx) {
+                        AuditService audit, TransactionTemplate tx, TotpService totp) {
+        this.totp = totp;
         this.view = view;
         this.users = users;
         this.refreshTokens = refreshTokens;
@@ -72,6 +75,17 @@ public class AdminService {
         requireExists(targetId);
         tx.executeWithoutResult(status -> forceLogoutInternal(targetId));
         audit.record(AuditEvent.ADMIN_FORCE_LOGOUT, targetId, ip, "admin=" + adminId);
+    }
+
+    /**
+     * Quita el 2FA a un usuario que perdió el dispositivo y los códigos de recuperación. El reseteo de contraseña por
+     * email NO lo hace a propósito (si bastara el correo, un correo robado anularía el segundo factor), así que esta
+     * es la vía de recuperación y queda auditada.
+     */
+    public void resetTotp(long adminId, long targetId, String ip) {
+        requireExists(targetId);
+        totp.reset(targetId);
+        audit.record(AuditEvent.ADMIN_TOTP_RESET, targetId, ip, "admin=" + adminId);
     }
 
     private void forceLogoutInternal(long userId) {

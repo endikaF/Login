@@ -9,10 +9,12 @@ import com.example.login.audit.AuditService;
 import com.example.login.security.LoginAttemptService;
 import com.example.login.security.PasswordPolicy;
 import com.example.login.security.RateLimitService;
+import com.example.login.totp.TotpService;
 import com.example.login.user.User;
 import com.example.login.user.UserRepository;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -29,6 +31,7 @@ public class AuthService {
     private final RateLimitService rateLimit;
     private final LoginAttemptService attempts;
     private final AuditService audit;
+    private final TotpService totp;
     /**
      * Hash Argon2id de una contraseña que nadie conoce. Se compara cuando el usuario NO existe para que el
      * login tarde aproximadamente lo mismo exista o no la cuenta (evita enumerar usuarios midiendo tiempos).
@@ -37,7 +40,7 @@ public class AuthService {
 
     public AuthService(UserRepository users, PasswordEncoder encoder, JwtService jwt,
                        RefreshTokenService refreshTokens, RateLimitService rateLimit,
-                       LoginAttemptService attempts, AuditService audit) {
+                       LoginAttemptService attempts, AuditService audit, TotpService totp) {
         this.users = users;
         this.encoder = encoder;
         this.jwt = jwt;
@@ -45,10 +48,18 @@ public class AuthService {
         this.rateLimit = rateLimit;
         this.attempts = attempts;
         this.audit = audit;
+        this.totp = totp;
         this.dummyHash = encoder.encode(UUID.randomUUID().toString());
     }
 
-    public Tokens login(String email, String rawPassword, String ip) {
+    /** Resultado del primer paso: sesión completa, o (con 2FA) solo el token temporal del segundo paso. */
+    public record LoginOutcome(Tokens tokens, String mfaToken) {
+        public boolean mfaRequired() {
+            return mfaToken != null;
+        }
+    }
+
+    public LoginOutcome login(String email, String rawPassword, String ip) {
         String normalized = email.trim().toLowerCase(Locale.ROOT);
 
         // 1) Rate limiting ANTES de tocar la BD o Argon2: es lo más barato y protege los recursos caros.
@@ -101,8 +112,57 @@ public class AuthService {
             throw new EmailNotVerifiedException();
         }
 
+        // Con 2FA activo la contraseña sola NO basta: no se emite ninguna sesión, solo un token temporal para el
+        // segundo paso. Tampoco se borra aún el contador de fallos: si se borrase aquí, quien conozca la contraseña
+        // podría reiniciarlo en cada intento y adivinar el código de 6 dígitos sin llegar nunca al bloqueo.
+        if (totp.isEnabled(user.id())) {
+            audit.record(AuditEvent.LOGIN_MFA_REQUIRED, user.id(), ip, null);
+            return new LoginOutcome(null, jwt.issueMfa(user.id(), user.tokenVersion()));
+        }
+        return new LoginOutcome(startSession(user, ip, null), null);
+    }
+
+    /** Segundo paso del login: token temporal + código TOTP (o de recuperación). */
+    public Tokens completeMfaLogin(String mfaToken, String code, String ip) {
+        try {
+            rateLimit.checkLoginIp(ip);
+        } catch (RateLimitService.RateLimitedException e) {
+            audit.record(AuditEvent.RATE_LIMITED, null, ip, "login_mfa");
+            throw e;
+        }
+        long userId;
+        long version;
+        try {
+            var token = jwt.decodeMfa(mfaToken);
+            userId = Long.parseLong(token.getSubject());
+            version = ((Number) token.getClaim("ver")).longValue();
+        } catch (JwtException | NumberFormatException | NullPointerException | ClassCastException e) {
+            throw new InvalidCredentialsException(); // caducado, manipulado o de otro tipo: respuesta genérica
+        }
+        // Se revalida todo: pudo cambiar la contraseña (token_version), desactivarse o bloquearse en estos minutos.
+        User user = users.findById(userId)
+                .filter(User::enabled).filter(User::emailVerified).filter(u -> u.tokenVersion() == version)
+                .orElseThrow(InvalidCredentialsException::new);
+        try {
+            rateLimit.checkLoginAccount(user.email());
+        } catch (RateLimitService.RateLimitedException e) {
+            audit.record(AuditEvent.RATE_LIMITED, user.id(), ip, "login_mfa");
+            throw e;
+        }
+        if (user.isLocked(Instant.now())) {
+            audit.record(AuditEvent.LOGIN_BLOCKED, user.id(), ip, "account_locked");
+            throw new InvalidCredentialsException();
+        }
+        if (code == null || !totp.verifyCode(user.id(), code, ip)) {
+            totp.recordFailure(user, ip, "login");
+            throw new InvalidCredentialsException();
+        }
+        return startSession(user, ip, "mfa");
+    }
+
+    private Tokens startSession(User user, String ip, String detail) {
         attempts.recordSuccess(user.id());
-        audit.record(AuditEvent.LOGIN_OK, user.id(), ip, null);
+        audit.record(AuditEvent.LOGIN_OK, user.id(), ip, detail);
         return new Tokens(jwt.issue(user.id(), user.tokenVersion()), jwt.accessTtl().toSeconds(),
                 refreshTokens.startSession(user.id()));
     }

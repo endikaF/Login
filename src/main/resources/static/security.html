@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seguridad de la cuenta · Tablero de notas</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/security.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Saltar al contenido</a>
+  <header>
+    <h1>Seguridad de la cuenta</h1>
+    <nav class="row" aria-label="Navegación">
+      <a href="notes.html">Mis notas</a>
+      <button id="logout" class="secondary" type="button">Cerrar sesión</button>
+    </nav>
+  </header>
+  <main id="main">
+    <p id="msg" class="msg" aria-live="polite"></p>
+
+    <section class="card" aria-labelledby="status-title">
+      <h2 id="status-title">Verificación en dos pasos (TOTP)</h2>
+      <p id="status">Comprobando…</p>
+      <p class="hint">Además de la contraseña, se pedirá un código de 6 dígitos de una app de autenticación
+        (Google Authenticator, Aegis, Authy, Microsoft Authenticator…).</p>
+    </section>
+
+    <section id="enable-section" class="card" aria-labelledby="enable-title" hidden>
+      <h2 id="enable-title">Activar</h2>
+      <form id="setup-form">
+        <!-- Campo de usuario oculto: lo piden los gestores de contraseñas y los lectores de pantalla en formularios de contraseña -->
+        <input type="text" name="username" autocomplete="username" hidden>
+        <label for="setup-password">Tu contraseña actual</label>
+        <input id="setup-password" type="password" autocomplete="current-password" required maxlength="128">
+        <button type="submit">Generar clave</button>
+      </form>
+
+      <div id="confirm-block" hidden>
+        <p>1. En tu app de autenticación elige «Añadir cuenta» → «Introducir clave de configuración» y escribe esta clave:</p>
+        <p><code id="secret"></code></p>
+        <p class="hint">Cuenta: tu email · Tipo: basado en tiempo · 6 dígitos · 30 segundos. Si tu app lo permite también puedes
+          <a id="otpauth-link" href="#">abrir el enlace de configuración</a>.</p>
+        <p>2. Escribe el código de 6 dígitos que muestra la app para confirmar:</p>
+        <form id="enable-form">
+          <label for="enable-code">Código de 6 dígitos</label>
+          <input id="enable-code" inputmode="numeric" autocomplete="one-time-code" required maxlength="6" pattern="[0-9]{6}">
+          <button type="submit">Confirmar y activar</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="recovery-section" class="card" aria-labelledby="recovery-title" hidden>
+      <h2 id="recovery-title">Códigos de recuperación</h2>
+      <p><strong>Guárdalos ahora en un lugar seguro.</strong> No volverán a mostrarse. Cada uno sirve una sola vez si pierdes
+        el dispositivo.</p>
+      <pre id="recovery-codes" tabindex="0" aria-label="Códigos de recuperación"></pre>
+    </section>
+
+    <section id="disable-section" class="card" aria-labelledby="disable-title" hidden>
+      <h2 id="disable-title">Desactivar</h2>
+      <form id="disable-form">
+        <input type="text" name="username" autocomplete="username" hidden>
+        <label for="disable-password">Tu contraseña actual</label>
+        <input id="disable-password" type="password" autocomplete="current-password" required maxlength="128">
+        <label for="disable-code">Código de la app o código de recuperación</label>
+        <input id="disable-code" autocomplete="one-time-code" required maxlength="40">
+        <button type="submit" class="danger">Desactivar verificación en dos pasos</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

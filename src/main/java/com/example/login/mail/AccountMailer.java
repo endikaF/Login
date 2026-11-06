@@ -55,6 +55,17 @@ public class AccountMailer {
                 y revisa la seguridad de tu correo.""".formatted(baseUrl));
     }
 
+    /** Aviso al activar o desactivar la verificación en dos pasos: si no fue el titular, lo sabrá enseguida. */
+    public void sendTotpChanged(String to, boolean enabled) {
+        email.send(to, enabled ? "Verificación en dos pasos activada" : "Verificación en dos pasos desactivada", """
+                Hola,
+
+                La verificación en dos pasos de tu cuenta se acaba de %s.
+                Si no fuiste tú, cambia tu contraseña cuanto antes desde:
+
+                %s/forgot-password.html""".formatted(enabled ? "activar" : "desactivar", baseUrl));
+    }
+
     /** Se envía al registrarse con un email que ya tiene cuenta; así el formulario responde igual en ambos casos. */
     public void sendAlreadyRegistered(String to) {
         email.send(to, "Ya tienes una cuenta", """

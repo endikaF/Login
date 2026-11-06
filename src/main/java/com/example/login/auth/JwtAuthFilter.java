@@ -54,6 +54,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         long version;
         try {
             jwt = jwtService.decode(token);
+            // Solo los access token autentican. El token del segundo paso del login (typ=mfa) se rechaza aquí.
+            if (!JwtService.TYPE_ACCESS.equals(jwt.getClaimAsString("typ"))) {
+                return;
+            }
             userId = Long.parseLong(jwt.getSubject());
             Object ver = jwt.getClaim("ver");
             if (!(ver instanceof Number number)) {

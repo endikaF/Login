@@ -4,7 +4,7 @@ Proyecto de aprendizaje: web con backend Java cuyo núcleo es la **autenticació
 multiusuario**. El tema (notas personales) solo aporta un recurso privado por usuario para poder
 probar que nadie accede a datos ajenos.
 
-**Estado:** Fase 6 de 6 completada salvo el segundo factor TOTP, que es opcional y está pendiente de decisión.
+**Estado:** Fase 6 de 6 completada, **incluido el segundo factor TOTP opcional**.
 La revisión de seguridad (OWASP ASVS 4.0 nivel 2) está en [SECURITY-REVIEW.md](SECURITY-REVIEW.md), con sus límites y los huecos conocidos.
 
 | Fase | Contenido | Estado |
@@ -15,7 +15,7 @@ La revisión de seguridad (OWASP ASVS 4.0 nivel 2) está en [SECURITY-REVIEW.md]
 | 3 | Fuerza bruta, rate limiting, bloqueo, auditoría | Hecha |
 | 4 | Verificación de email y recuperación de contraseña | Hecha |
 | 5 | Roles, panel admin, propiedad, cabeceras, CORS/CSRF, frontend | Hecha |
-| 6 | Revisión ASVS nivel 2, README final, TOTP opcional | Revisión y README hechos; TOTP pendiente |
+| 6 | Revisión ASVS nivel 2, README final, TOTP opcional | Hecha (incluye TOTP) |
 
 ## Stack (versiones verificadas en Maven Central el 2026-11-06)
 
@@ -51,6 +51,8 @@ La revisión de seguridad (OWASP ASVS 4.0 nivel 2) está en [SECURITY-REVIEW.md]
      $b = New-Object byte[] 48; [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
      ```
      Si la cambias, todos los access token emitidos dejan de valer.
+   - `TOTP_ENCRYPTION_KEY`: **obligatoria**, otra clave distinta de `JWT_SECRET` (mínimo 32 caracteres, se genera igual).
+     Cifra los secretos de la verificación en dos pasos. Si la pierdes, esos 2FA dejan de funcionar.
 3. **Arranca** desde la carpeta del proyecto:
    ```powershell
    mvn spring-boot:run
@@ -65,7 +67,7 @@ La revisión de seguridad (OWASP ASVS 4.0 nivel 2) está en [SECURITY-REVIEW.md]
 ### Alternativas
 - **Sin `.env`**, con variables de entorno de la sesión de PowerShell:
   ```powershell
-  $env:JWT_SECRET = "<tu clave>"; $env:ADMIN_EMAIL = "admin@example.com"; $env:ADMIN_PASSWORD = "<tu contraseña>"
+  $env:JWT_SECRET = "<tu clave>"; $env:TOTP_ENCRYPTION_KEY = "<otra clave>"; $env:ADMIN_EMAIL = "admin@example.com"; $env:ADMIN_PASSWORD = "<tu contraseña>"
   mvn spring-boot:run
   ```
 - **Como JAR:** `mvn -DskipTests package` y después, desde la carpeta del proyecto (para que encuentre `.env` y `data/`):
@@ -76,7 +78,8 @@ La revisión de seguridad (OWASP ASVS 4.0 nivel 2) está en [SECURITY-REVIEW.md]
 ### Problemas frecuentes
 | Síntoma | Causa y solución |
 |---|---|
-| `JWT_SECRET no definida o demasiado corta` | Falta en `.env` o tiene menos de 32 caracteres (ver paso 2) |
+| `JWT_SECRET no definida...` o `TOTP_ENCRYPTION_KEY no definida...` | Falta en `.env` o tiene menos de 32 caracteres (ver paso 2) |
+| Perdí el móvil y los códigos de recuperación | Un administrador te quita el 2FA desde el panel («Quitar 2FA») |
 | `Port 8080 was already in use` | Hay otra instancia en marcha. Ciérrala o cambia `server.port` en `application.yml` |
 | Al registrarme no recibo el correo | Es simulado: está en la consola de la app, no en tu bandeja |
 | «Debes verificar tu email» al entrar | Abre primero el enlace de verificación de la consola |
@@ -259,6 +262,7 @@ HTML, CSS y JavaScript puros en `src/main/resources/static/`, **sin nada en lín
 | `index.html` | Iniciar sesión y crear cuenta |
 | `notes.html` | Tus notas, cerrar sesión y cerrar sesión en todos los dispositivos |
 | `admin.html` | Panel de administración (solo `ADMIN`) |
+| `security.html` | Activar o desactivar la verificación en dos pasos |
 | `forgot-password.html` / `reset-password.html` / `verify-email.html` | Destinos de los enlaces del email simulado |
 
 - El **access token vive solo en una variable de memoria** (nunca en el almacenamiento del navegador): un XSS no puede
@@ -277,6 +281,7 @@ HTML, CSS y JavaScript puros en `src/main/resources/static/`, **sin nada en lín
 
 ```
 src/main/java/com/example/login/
+  totp/      Totp (algoritmo RFC 6238 + Base32), TotpService, TotpRepository, TotpSecretCipher, TotpController
   admin/     AdminController, AdminService, AdminRepository (vista de lectura), AdminExceptions
   audit/     AuditService, AuditEvent
   auth/      AuthController, AuthService, JwtService, JwtAuthFilter, RefreshTokenService/Repository,
@@ -332,6 +337,53 @@ Nada de claves ni credenciales en el código. Todo por variables de entorno; `.e
 están en `.gitignore`. `.env.example` solo contiene marcadores, nunca valores reales.
 La contraseña del admin que uses ahora es de prueba: cámbiala por la definitiva cuando termines de revisar.
 
+## Qué hay implementado (segundo factor TOTP)
+
+Verificación en dos pasos opcional por usuario, con **TOTP (RFC 6238)**: un código de 6 dígitos que cambia cada
+30 segundos y genera una app de autenticación (Google Authenticator, Aegis, Authy, Microsoft Authenticator...).
+
+| Endpoint | Acceso | Qué hace |
+|---|---|---|
+| `POST /api/auth/totp/setup` `{password}` | sesión | Genera un secreto **pendiente** y devuelve la clave Base32 y el enlace `otpauth://` |
+| `POST /api/auth/totp/enable` `{code}` | sesión | Confirma con un primer código, activa el 2FA y devuelve **8 códigos de recuperación** (solo esta vez) |
+| `POST /api/auth/totp/disable` `{password, code}` | sesión | Desactiva el 2FA (código de la app o de recuperación) |
+| `POST /api/auth/login` | público | Con 2FA activo devuelve `{mfaRequired, mfaToken}` **sin cookie ni access token** |
+| `POST /api/auth/login/totp` `{mfaToken, code}` | público | Segundo paso: emite la sesión si el código es correcto |
+| `POST /api/admin/users/{id}/totp/reset` | ADMIN | Quita el 2FA a un usuario que perdió dispositivo y códigos |
+
+- **Algoritmo:** HMAC-SHA1 del JDK, 6 dígitos, paso de 30 s, ventana de ±1 paso (tolera ±30 s de desfase). Sin dependencias
+  nuevas. Se verifica contra los **vectores de prueba oficiales del RFC 6238** y los de Base32 del RFC 4648, y además se
+  validó a mano con un generador independiente escrito con la librería estándar de Python. SHA-1 es correcto en un HMAC y
+  es lo que soportan todas las apps.
+- **Secreto cifrado en la BD** (AES-256-GCM, Spring Security Crypto, clave `TOTP_ENCRYPTION_KEY` del entorno): hay que
+  poder leerlo para calcular códigos, así que no vale un hash. Quien robe solo el archivo de la BD no puede generar códigos.
+- **Un código no se puede reutilizar:** se guarda el último intervalo aceptado (`last_used_step`) con un `UPDATE` atómico,
+  incluido el código que se usó para activar el 2FA. Evita repetir un código espiado.
+- **Resistencia a la fuerza bruta:** con solo 10^6 códigos, cada código erróneo cuenta para el **bloqueo progresivo** de la
+  cuenta y para el límite de intentos, igual que una contraseña errónea. Con la cuenta bloqueada se rechaza incluso el código bueno.
+- **Token temporal del segundo paso:** JWT de 5 minutos con `typ=mfa`. No se acepta como access token (el filtro exige
+  `typ=access`) ni al revés. Se revalida al usarlo: si cambió la contraseña (`token_version`), se desactivó la cuenta o se bloqueó,
+  deja de valer. El paso de la contraseña no reinicia el contador de fallos, para que quien conozca la contraseña no pueda
+  borrarlo en cada intento.
+- **Contraseña para activar y desactivar:** un access token robado (10 min) no basta para activar un 2FA ajeno y dejar fuera
+  al dueño. Los errores en estas pantallas devuelven `403` (no `401`) para que el frontend no reintente y cuente el fallo dos veces.
+- **Códigos de recuperación:** 8 de 80 bits (`XXXX-XXXX-XXXX-XXXX`), solo se guarda su SHA-256, un solo uso, se aceptan en
+  minúsculas y con o sin guiones o espacios.
+- **Avisos por email** al activar y desactivar el 2FA.
+- **El reseteo de contraseña por email NO quita el 2FA, a propósito:** si bastara el correo, un correo robado anularía el
+  segundo factor. Quien pierde el dispositivo y los códigos lo recupera con un administrador (`totp/reset`, auditado).
+- **Auditoría nueva:** `LOGIN_MFA_REQUIRED`, `TOTP_ENABLED`, `TOTP_DISABLED`, `TOTP_FAILED`, `TOTP_RECOVERY_USED`,
+  `ADMIN_TOTP_RESET` (nunca con secretos ni códigos).
+- **Frontend:** `security.html` (activar con clave y código, mostrar los códigos de recuperación una sola vez, desactivar),
+  segundo paso en el formulario de acceso y botón «Quitar 2FA» en el panel de administración.
+
+**Simplificaciones declaradas:**
+- **Sin código QR:** generarlo exigiría una librería. La clave se muestra como texto (y como enlace `otpauth://`), y las apps
+  la aceptan con «Introducir clave de configuración».
+- No se pueden regenerar los códigos de recuperación sin desactivar y reactivar el 2FA.
+- Perder o cambiar `TOTP_ENCRYPTION_KEY` invalida todos los 2FA activos. En producción: gestor de secretos o KMS con rotación.
+- Con 2FA, un inicio de sesión consume dos «fichas» del límite por cuenta (contraseña y código).
+
 ## Fase 6 · Revisión de seguridad
 
 Resumen (detalle, evidencias y huecos en [SECURITY-REVIEW.md](SECURITY-REVIEW.md)): la revisión contra ASVS 4.0 nivel 2
@@ -344,10 +396,10 @@ y corrigió tres cosas:
   sesión robada para siempre renovándola. El token nuevo nunca vive más que el final de la sesión.
 - **Aviso por email al cambiar la contraseña**, sin ningún secreto en el mensaje.
 
-Huecos que quedan abiertos y asumidos: contraseñas filtradas sin comprobar, sin segundo factor, sin TLS propio, BD sin
-cifrar, sin limpieza de datos caducados y sin análisis de CVE de dependencias.
+Huecos que quedan abiertos y asumidos: contraseñas filtradas sin comprobar, sin TLS propio, BD sin cifrar (solo los
+secretos TOTP van cifrados), sin limpieza de datos caducados y sin análisis de CVE de dependencias.
 
-## Tests (129 en total, todos en verde con `mvn verify`)
+## Tests (161 en total, todos en verde con `mvn verify`)
 
 Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
 
@@ -388,6 +440,14 @@ Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
   supera el final de la sesión; aviso de cambio de contraseña sin secretos; cuerpo de más de 64 KB → 413; `chunked` → 411;
   peticiones normales y GET sin afectar.
 
+- **TOTP (32):** los 6 vectores oficiales del RFC 6238 y los de Base32 del RFC 4648; ventana de ±1 paso y rechazo de
+  repeticiones; activación (contraseña obligatoria y fallos contados, secreto cifrado y pendiente, 8 códigos de recuperación
+  solo como hash); el login con 2FA no da sesión ni cookie, y su token temporal no vale como access token (ni al revés);
+  código correcto, repetido y el usado al activar; códigos erróneos que bloquean la cuenta; token temporal caducado,
+  manipulado, tras cambiar contraseña o desactivar la cuenta; recuperación de un solo uso en cualquier formato; baja que
+  exige contraseña y código; el reseteo por email no quita el 2FA; reseteo por admin; y auditoría sin secretos. Usa un
+  reloj de pruebas que se puede avanzar (`TestClock`) para no esperar 30 s reales.
+
 Los tests de rate limiting usan límites bajos y recrean el contexto tras cada test (los cubos viven en memoria);
 el resto de tests cargan límites holgados desde `src/test/resources/config/application.properties`.
 
@@ -397,4 +457,7 @@ verificación → login → olvido de contraseña → reseteo → login con la n
 (Chrome): login desde la interfaz, sesión recuperada al navegar, nota con `<img onerror>` y `<script>` mostrada como
 texto, panel admin con los botones de autoprotección deshabilitados y consola sin errores ni violaciones de CSP (Fase 5).
 Los límites de tamaño (413 y 411) se comprobaron también contra el servidor real (Fase 6).
+El 2FA se probó en Chrome de principio a fin: contraseña errónea rechazada, clave generada, código calculado con un
+generador independiente en Python y aceptado por el servidor, login que pide el segundo paso, código reutilizado
+rechazado, y baja con un código de recuperación. En la BD real el secreto aparece cifrado y los códigos solo como hash.
 No se ha probado en otros navegadores ni con lector de pantalla.

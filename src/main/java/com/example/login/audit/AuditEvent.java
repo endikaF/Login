@@ -17,5 +17,11 @@ public enum AuditEvent {
     ADMIN_USER_ENABLED,   // acciones de administración: user_id = cuenta afectada, detail = "admin=<id>"
     ADMIN_USER_DISABLED,
     ADMIN_ROLE_CHANGED,
-    ADMIN_FORCE_LOGOUT
+    ADMIN_FORCE_LOGOUT,
+    ADMIN_TOTP_RESET,
+    LOGIN_MFA_REQUIRED,   // contraseña correcta, falta el segundo factor
+    TOTP_ENABLED,
+    TOTP_DISABLED,
+    TOTP_FAILED,          // código TOTP o contraseña incorrectos al gestionar o completar el 2FA
+    TOTP_RECOVERY_USED
 }

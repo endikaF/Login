@@ -118,7 +118,7 @@ public class SecurityConfig {
                         // Frontend estático (solo lectura): HTML, CSS y JS propios. No contienen datos de nadie.
                         .requestMatchers(HttpMethod.GET, "/", "/*.html", "/css/**", "/js/**").permitAll()
                         // Públicos: no hay identidad previa. /refresh y /logout se apoyan en la cookie, no en el JWT.
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login",
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/login/totp",
                                 "/api/auth/refresh", "/api/auth/logout", "/api/auth/forgot-password",
                                 "/api/auth/reset-password", "/api/auth/verify-email",
                                 "/api/auth/resend-verification").permitAll()

@@ -60,6 +60,13 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/totp/reset")
+    public ResponseEntity<Void> resetTotp(@AuthenticationPrincipal AuthenticatedUser me, @PathVariable long id,
+                                          HttpServletRequest http) {
+        admin.resetTotp(me.id(), id, http.getRemoteAddr());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/logout")
     public ResponseEntity<Void> forceLogout(@AuthenticationPrincipal AuthenticatedUser me, @PathVariable long id,
                                             HttpServletRequest http) {

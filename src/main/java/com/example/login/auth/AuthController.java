@@ -4,7 +4,11 @@ import java.time.Duration;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
+import com.example.login.totp.TotpService;
+
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -27,19 +31,40 @@ public class AuthController {
 
     private final AuthService auth;
     private final RefreshTokenService refreshTokens;
+    private final TotpService totp;
     private final boolean secureCookie;
 
-    public AuthController(AuthService auth, RefreshTokenService refreshTokens,
+    public AuthController(AuthService auth, RefreshTokenService refreshTokens, TotpService totp,
                           @Value("${app.cookie.secure}") boolean secureCookie) {
         this.auth = auth;
         this.refreshTokens = refreshTokens;
+        this.totp = totp;
         this.secureCookie = secureCookie;
     }
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request,
                                                      HttpServletRequest http) {
-        return tokenResponse(auth.login(request.email(), request.password(), http.getRemoteAddr()));
+        var outcome = auth.login(request.email(), request.password(), http.getRemoteAddr());
+        if (outcome.mfaRequired()) {
+            // Contraseña correcta pero falta el segundo factor: sin cookie y sin access token.
+            return ResponseEntity.ok(Map.of("mfaRequired", true, "mfaToken", outcome.mfaToken(),
+                    "expiresIn", JwtService.MFA_TTL.toSeconds()));
+        }
+        return tokenResponse(outcome.tokens());
+    }
+
+    public record MfaLoginRequest(@NotBlank @Size(max = 2000) String mfaToken, @NotBlank @Size(max = 40) String code) {
+        @Override
+        public String toString() {
+            return "MfaLoginRequest[mfaToken=***, code=***]";
+        }
+    }
+
+    @PostMapping("/login/totp")
+    public ResponseEntity<Map<String, Object>> loginTotp(@Valid @RequestBody MfaLoginRequest request,
+                                                         HttpServletRequest http) {
+        return tokenResponse(auth.completeMfaLogin(request.mfaToken(), request.code(), http.getRemoteAddr()));
     }
 
     @PostMapping("/refresh")
@@ -72,7 +97,7 @@ public class AuthController {
     /** Devuelve la identidad del token; sirve para que el frontend sepa quién es y qué rol tiene. */
     @GetMapping("/me")
     public Map<String, Object> me(@AuthenticationPrincipal AuthenticatedUser user) {
-        return Map.of("email", user.email(), "role", user.role().name());
+        return Map.of("email", user.email(), "role", user.role().name(), "totpEnabled", totp.isEnabled(user.id()));
     }
 
     private ResponseEntity<Map<String, Object>> tokenResponse(AuthService.Tokens tokens) {

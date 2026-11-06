@@ -64,3 +64,26 @@ CREATE TABLE IF NOT EXISTS audit_log (
     -- Nunca contraseñas, tokens ni hashes.
     detail  TEXT
 );
+
+-- Segundo factor TOTP (RFC 6238). Se añaden tablas nuevas con IF NOT EXISTS: las existentes no se modifican.
+CREATE TABLE IF NOT EXISTS user_totp (
+    user_id        INTEGER PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+    -- Secreto en Base32 CIFRADO con AES-GCM (clave TOTP_ENCRYPTION_KEY). Hay que poder descifrarlo para verificar
+    -- códigos, por eso no vale un hash; si se filtra solo la BD, sin la clave no sirve.
+    secret_enc     TEXT    NOT NULL,
+    -- 0 = pendiente de confirmar con un primer código; 1 = activo
+    enabled        INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+    -- Último intervalo de 30 s aceptado: impide reutilizar un código (repetición) dentro de su ventana.
+    last_used_step INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS totp_recovery_codes (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    -- SHA-256 del código (80 bits de entropía: no es adivinable ni siquiera con la BD filtrada). Un solo uso.
+    code_hash  TEXT    NOT NULL,
+    used_at    TEXT,
+    created_at TEXT    NOT NULL,
+    UNIQUE (user_id, code_hash)
+);

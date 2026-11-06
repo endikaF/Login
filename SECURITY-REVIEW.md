@@ -1,6 +1,7 @@
 # Revisión de seguridad (OWASP ASVS 4.0, nivel 2)
 
-Revisión de los puntos de ASVS que aplican a este proyecto, hecha al cierre de la Fase 6.
+Revisión de los puntos de ASVS que aplican a este proyecto, hecha al cierre de la Fase 6 y actualizada al añadir el
+segundo factor TOTP.
 
 **Alcance y límites (léelo antes de fiarte del resultado):**
 - Es una **autorrevisión** del código por quien lo escribió, contrastada con tests y pruebas manuales. No es una
@@ -46,7 +47,7 @@ Fuera de alcance: compromiso del servidor o del equipo, TLS (se asume un proxy),
 | Verificación del email | Cumple | El login lo exige |
 | Rechazar contraseñas comunes o filtradas | **Pendiente** | No hay lista de contraseñas filtradas. El mínimo de 12 caracteres mitiga, no sustituye. En producción: consulta k-anonymity a Have I Been Pwned o una lista local |
 | Cambio de contraseña estando autenticado (pidiendo la actual) | **Pendiente** | No implementado; solo existe el reseteo por email. Fuera de lo pedido |
-| Segundo factor (MFA) | **Pendiente** | TOTP es opcional y no se ha implementado todavía (ver README) |
+| Segundo factor (MFA) | Cumple (opcional por usuario) | TOTP RFC 6238 con vectores oficiales; no reutilizable; fuerza bruta contada; ver «Segundo factor» abajo. No es obligatorio para nadie |
 | Reencriptar el hash al subir los parámetros | Pendiente | Los hashes incluyen sus parámetros, pero no se rehashean al iniciar sesión |
 
 ## V3 · Gestión de sesión
@@ -129,6 +130,24 @@ Fuera de alcance: compromiso del servidor o del equipo, TLS (se asume un proxy),
 | Dependencias mínimas y actualizadas | Parcial | Versiones verificadas en Maven Central al inicio, sin dependencias no justificadas. **No se ha ejecutado un análisis de CVE** (p. ej. OWASP Dependency-Check) |
 | Subida de archivos | N/A | No existe |
 
+## Segundo factor (TOTP)
+
+| Control | Estado | Evidencia / comentario |
+|---|---|---|
+| Algoritmo estándar y verificado | Cumple | RFC 6238 con los 6 vectores oficiales; contraste manual con un generador independiente (Python) |
+| Secreto no recuperable desde la BD sola | Cumple | AES-256-GCM con clave del entorno; comprobado en la BD real |
+| Un código no se puede repetir | Cumple | `last_used_step` con `UPDATE` atómico; incluye el código del alta |
+| Resistencia a fuerza bruta del código | Cumple | Fallos cuentan para bloqueo progresivo y límites; el paso de contraseña no reinicia el contador |
+| El factor intermedio no da acceso | Cumple | Token `typ=mfa` rechazado como access token y viceversa; 5 min; se revalida |
+| Activar/desactivar exige reautenticación | Cumple | Contraseña (y código para desactivar) |
+| Códigos de recuperación | Cumple | 80 bits, solo hash, un solo uso |
+| Aviso al usuario al cambiar el 2FA | Cumple | Email al activar y desactivar |
+| El reseteo por email no anula el 2FA | Cumple | Probado; la recuperación pasa por un administrador, que queda auditado |
+| Código QR | Pendiente | No hay librería; clave en texto y enlace `otpauth://` |
+| Regenerar códigos de recuperación | Pendiente | Hay que desactivar y reactivar |
+| Cifrado con clave gestionada/rotable | Pendiente | `TOTP_ENCRYPTION_KEY` en una variable de entorno; sin rotación |
+| Resistente a suplantación (phishing) | No | TOTP puede ser reenviado en tiempo real por una web falsa; WebAuthn/passkeys sí lo evitan |
+
 ## Límites conocidos de diseño (simplificaciones de aprendizaje)
 
 - **Rate limiting en memoria** (Bucket4j): se pierde al reiniciar y no se comparte entre instancias. Producción: Redis o el proxy.
@@ -151,7 +170,7 @@ Fuera de alcance: compromiso del servidor o del equipo, TLS (se asume un proxy),
 ## Prioridades si esto pasara a producción
 
 1. TLS detrás de un proxy y `X-Forwarded-*` configurado.
-2. Rechazar contraseñas filtradas y añadir segundo factor (TOTP o WebAuthn).
+2. Rechazar contraseñas filtradas, hacer obligatorio el segundo factor para administradores y valorar WebAuthn.
 3. Análisis de dependencias en CI y actualización periódica.
 4. Rate limiting compartido (Redis) y límite de concurrencia de Argon2.
 5. Tareas de limpieza y registro de auditoría fuera de la BD, de solo añadir.

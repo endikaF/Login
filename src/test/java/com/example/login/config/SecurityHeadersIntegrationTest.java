@@ -119,7 +119,7 @@ class SecurityHeadersIntegrationTest {
     @Test
     void staticPagesAreServedWithoutAuthentication() throws Exception {
         for (String page : List.of("/", "/index.html", "/notes.html", "/admin.html", "/forgot-password.html",
-                "/reset-password.html", "/verify-email.html", "/css/style.css", "/js/api.js")) {
+                "/reset-password.html", "/verify-email.html", "/security.html", "/css/style.css", "/js/api.js")) {
             mvc.perform(get(page)).andExpect(status().isOk());
         }
     }

@@ -27,7 +27,8 @@ function render(users) {
     const isMe = user.email === myEmail;
     const row = document.createElement('tr');
     const cells = [user.email, user.role,
-      (user.enabled ? 'Activa' : 'Desactivada') + (user.emailVerified ? '' : ' · sin verificar') + (user.locked ? ' · bloqueada' : '')];
+      (user.enabled ? 'Activa' : 'Desactivada') + (user.emailVerified ? '' : ' · sin verificar') + (user.locked ? ' · bloqueada' : '')
+        + (user.totpEnabled ? ' · 2FA' : '')];
     for (const text of cells) {
       const td = document.createElement('td');
       td.textContent = text;
@@ -50,6 +51,13 @@ function render(users) {
       }, { disabled: isMe && user.role === 'ADMIN', title: isMe ? selfHint : '' }),
       button('Cerrar sus sesiones', () => act('/api/admin/users/' + user.id + '/logout', undefined, 'Sesiones cerradas.')),
     );
+    if (user.totpEnabled) {
+      actions.append(button('Quitar 2FA', () => {
+        if (confirm('¿Quitar la verificación en dos pasos a ' + user.email + '? Hazlo solo si has comprobado su identidad.')) {
+          act('/api/admin/users/' + user.id + '/totp/reset', undefined, 'Verificación en dos pasos eliminada.');
+        }
+      }, { danger: true }));
+    }
     row.append(actions);
     tbody.append(row);
   }

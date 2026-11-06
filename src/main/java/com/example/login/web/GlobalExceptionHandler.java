@@ -7,6 +7,7 @@ import com.example.login.auth.EmailNotVerifiedException;
 import com.example.login.auth.InvalidCredentialsException;
 import com.example.login.auth.InvalidTokenException;
 import com.example.login.security.RateLimitService;
+import com.example.login.totp.TotpExceptions;
 import com.example.login.user.EmailAlreadyRegisteredException;
 import com.example.login.user.WeakPasswordException;
 
@@ -83,6 +84,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, Long.toString(e.retryAfterSeconds()))
                 .body(Map.of("error", "TOO_MANY_REQUESTS", "message", "Demasiados intentos. Inténtalo más tarde."));
+    }
+
+    @ExceptionHandler(TotpExceptions.ReauthenticationFailedException.class)
+    public ResponseEntity<Map<String, String>> reauthFailed(TotpExceptions.ReauthenticationFailedException e) {
+        // Mismo mensaje para contraseña errónea, código erróneo o cuenta bloqueada.
+        return error(HttpStatus.FORBIDDEN, "Contraseña o código incorrectos.");
+    }
+
+    @ExceptionHandler(TotpExceptions.TotpStateException.class)
+    public ResponseEntity<Map<String, String>> totpState(TotpExceptions.TotpStateException e) {
+        return error(HttpStatus.CONFLICT, "La operación no es válida en el estado actual de la verificación en dos pasos.");
     }
 
     @ExceptionHandler(AdminExceptions.SelfModificationException.class)
