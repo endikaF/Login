@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 
 class RateLimitServiceTest {
 
-    private final RateLimitService limiter = new RateLimitService(3, 2, 1, 100);
+    private final RateLimitService limiter = new RateLimitService(3, 2, 1, 5, 2, 4, 100);
 
     @Test
     void allowsUpToCapacityThenRejectsWithRetryAfter() {
@@ -39,7 +39,7 @@ class RateLimitServiceTest {
     void trackedKeysAreBounded() {
         // Con tope de 100 claves, inundar con claves inventadas no hace crecer la memoria indefinidamente
         // y el servicio sigue funcionando.
-        RateLimitService small = new RateLimitService(3, 2, 1, 100);
+        RateLimitService small = new RateLimitService(3, 2, 1, 5, 2, 4, 100);
         for (int i = 0; i < 10_000; i++) {
             small.checkLoginAccount("inventado" + i + "@example.com");
         }

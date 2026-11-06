@@ -48,7 +48,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Públicos: no hay identidad previa. /refresh y /logout se apoyan en la cookie, no en el JWT.
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login",
-                                "/api/auth/refresh", "/api/auth/logout").permitAll()
+                                "/api/auth/refresh", "/api/auth/logout", "/api/auth/forgot-password",
+                                "/api/auth/reset-password", "/api/auth/verify-email",
+                                "/api/auth/resend-verification").permitAll()
                         // Denegar por defecto: todo lo no listado exige autenticación.
                         .anyRequest().authenticated())
                 // Sin identidad válida: 401 con cuerpo vacío (sin pistas sobre por qué falló el token).

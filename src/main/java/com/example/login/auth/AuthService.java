@@ -95,6 +95,12 @@ public class AuthService {
             throw new InvalidCredentialsException();
         }
 
+        // Solo llega aquí quien ya demostró conocer la contraseña, así que avisarle no permite enumerar cuentas.
+        if (!user.emailVerified()) {
+            audit.record(AuditEvent.LOGIN_FAILED, user.id(), ip, "email_not_verified");
+            throw new EmailNotVerifiedException();
+        }
+
         attempts.recordSuccess(user.id());
         audit.record(AuditEvent.LOGIN_OK, user.id(), ip, null);
         return new Tokens(jwt.issue(user.id(), user.tokenVersion()), jwt.accessTtl().toSeconds(),

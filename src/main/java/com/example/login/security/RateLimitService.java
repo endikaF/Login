@@ -69,14 +69,38 @@ public class RateLimitService {
     private final KeyedLimiter loginIp;
     private final KeyedLimiter loginAccount;
     private final KeyedLimiter registerIp;
+    private final KeyedLimiter mailIp;
+    private final KeyedLimiter mailAccount;
+    private final KeyedLimiter tokenIp;
 
     public RateLimitService(@Value("${app.ratelimit.login-ip-per-minute}") long loginIpPerMinute,
                             @Value("${app.ratelimit.login-account-per-15min}") long loginAccountPer15Min,
                             @Value("${app.ratelimit.register-ip-per-hour}") long registerIpPerHour,
+                            @Value("${app.ratelimit.mail-ip-per-hour}") long mailIpPerHour,
+                            @Value("${app.ratelimit.mail-account-per-hour}") long mailAccountPerHour,
+                            @Value("${app.ratelimit.token-ip-per-minute}") long tokenIpPerMinute,
                             @Value("${app.ratelimit.max-tracked-keys}") int maxKeys) {
         this.loginIp = new KeyedLimiter(loginIpPerMinute, Duration.ofMinutes(1), maxKeys);
         this.loginAccount = new KeyedLimiter(loginAccountPer15Min, Duration.ofMinutes(15), maxKeys);
         this.registerIp = new KeyedLimiter(registerIpPerHour, Duration.ofHours(1), maxKeys);
+        this.mailIp = new KeyedLimiter(mailIpPerHour, Duration.ofHours(1), maxKeys);
+        this.mailAccount = new KeyedLimiter(mailAccountPerHour, Duration.ofHours(1), maxKeys);
+        this.tokenIp = new KeyedLimiter(tokenIpPerMinute, Duration.ofMinutes(1), maxKeys);
+    }
+
+    /** Solicitudes de correo (recuperar contraseña, reenviar verificación) por IP: frena el envío masivo. */
+    public void checkMailIp(String ip) {
+        mailIp.consume(ip);
+    }
+
+    /** Por destinatario (exista o no): impide inundar de correos a una víctima. */
+    public void checkMailAccount(String normalizedEmail) {
+        mailAccount.consume(normalizedEmail);
+    }
+
+    /** Canje de enlaces (verificar/resetear) por IP: el reset ejecuta Argon2, que es costoso. */
+    public void checkTokenIp(String ip) {
+        tokenIp.consume(ip);
     }
 
     public void checkLoginIp(String ip) {

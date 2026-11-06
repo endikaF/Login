@@ -64,6 +64,15 @@ public class UserRepository {
                         .addValue("level", newLevel));
     }
 
+    public void updatePassword(long userId, String passwordHash) {
+        jdbc.update("UPDATE users SET password_hash = :hash WHERE id = :id",
+                new MapSqlParameterSource().addValue("id", userId).addValue("hash", passwordHash));
+    }
+
+    public void markEmailVerified(long userId) {
+        jdbc.update("UPDATE users SET email_verified = 1 WHERE id = :id", new MapSqlParameterSource("id", userId));
+    }
+
     /** Login correcto: se olvida todo el historial de fallos y bloqueos. */
     public void clearLockState(long userId) {
         jdbc.update("UPDATE users SET failed_attempts = 0, lock_level = 0, locked_until = NULL WHERE id = :id",

@@ -50,7 +50,7 @@ class RegistrationIntegrationTest {
 
     @Test
     void registersUserWithArgon2idHashAndUserRole() throws Exception {
-        register("Nuevo@Example.com", PASSWORD).andExpect(status().isCreated());
+        register("Nuevo@Example.com", PASSWORD).andExpect(status().isAccepted());
 
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT email, password_hash, role, email_verified, enabled FROM users");
@@ -63,7 +63,7 @@ class RegistrationIntegrationTest {
 
     @Test
     void responseDoesNotLeakHashOrPassword() throws Exception {
-        register("a@example.com", PASSWORD).andExpect(status().isCreated())
+        register("a@example.com", PASSWORD).andExpect(status().isAccepted())
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("argon2"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(PASSWORD))));
     }
@@ -72,15 +72,18 @@ class RegistrationIntegrationTest {
     void clientCannotChooseRole() throws Exception {
         mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"r@example.com\",\"password\":\"" + PASSWORD + "\",\"role\":\"ADMIN\"}"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
         assertThat(jdbc.queryForObject("SELECT role FROM users", String.class)).isEqualTo("USER");
     }
 
     @Test
-    void rejectsDuplicateEmailCaseInsensitive() throws Exception {
-        register("dup@example.com", PASSWORD).andExpect(status().isCreated());
-        register("DUP@example.com", PASSWORD).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("No se pudo completar el registro."));
+    void duplicateEmailCreatesNoSecondAccountAndAnswersLikeANewOne() throws Exception {
+        String first = register("dup@example.com", PASSWORD).andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String second = register("DUP@example.com", PASSWORD).andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(second).isEqualTo(first); // misma respuesta: no se puede saber si el email ya existía
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isEqualTo(1);
     }
 
@@ -119,7 +122,7 @@ class RegistrationIntegrationTest {
 
     @Test
     void sqlInjectionInEmailStoredAsDataIsImpossibleButTableSurvives() throws Exception {
-        register("a@example.com", PASSWORD).andExpect(status().isCreated());
+        register("a@example.com", PASSWORD).andExpect(status().isAccepted());
         // la tabla sigue existiendo y con su fila
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isEqualTo(1);
     }

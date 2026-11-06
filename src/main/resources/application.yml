@@ -23,6 +23,11 @@ spring:
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
 app:
+  # Base de los enlaces de los correos (en producción, la URL pública HTTPS).
+  base-url: http://localhost:8080
+  tokens:
+    verify-email-hours: 24
+    reset-minutes: 20              # dentro del rango 15-30 min: un enlace robado caduca pronto
   jwt:
     # Vida corta: si un access token se roba, caduca pronto. No se puede revocar antes salvo con token_version.
     access-ttl-minutes: 10
@@ -33,7 +38,10 @@ app:
     login-ip-per-minute: 20        # intentos de login por IP y minuto
     login-account-per-15min: 10    # intentos de login por cuenta (exista o no) cada 15 minutos
     register-ip-per-hour: 10       # registros por IP y hora (Argon2 es costoso en CPU/memoria)
-    max-tracked-keys: 10000        # tope de claves en memoria: evita agotar RAM con emails/IP inventados
+    mail-ip-per-hour: 10           # peticiones de correo (recuperar/reenviar) por IP y hora
+    mail-account-per-hour: 3       # correos por destinatario y hora (exista o no la cuenta)
+    token-ip-per-minute: 20        # canjes de enlace (verificar/resetear) por IP y minuto
+    max-tracked-keys: 10000       # tope de claves en memoria: evita agotar RAM con emails/IP inventados
   lockout:
     max-attempts: 5                # fallos seguidos que disparan el bloqueo de la cuenta
     base-minutes: 1                # 1.er bloqueo; se duplica en cada bloqueo sucesivo...

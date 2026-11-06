@@ -4,7 +4,7 @@ Proyecto de aprendizaje: web con backend Java cuyo núcleo es la **autenticació
 multiusuario**. El tema (notas personales) solo aporta un recurso privado por usuario para poder
 probar que nadie accede a datos ajenos.
 
-**Estado:** Fase 3 de 6 completada (rate limiting, bloqueo progresivo de cuentas y auditoría).
+**Estado:** Fase 4 de 6 completada (verificación de email y recuperación de contraseña).
 
 | Fase | Contenido | Estado |
 |---|---|---|
@@ -12,7 +12,7 @@ probar que nadie accede a datos ajenos.
 | 1 | Scaffolding, SQLite + JDBC, registro, Argon2id | Hecha |
 | 2 | Login, JWT, refresh token rotatorio, logout | Hecha |
 | 3 | Fuerza bruta, rate limiting, bloqueo, auditoría | Hecha |
-| 4 | Verificación de email y recuperación de contraseña | Pendiente |
+| 4 | Verificación de email y recuperación de contraseña | Hecha |
 | 5 | Roles, panel admin, propiedad, cabeceras, CORS/CSRF, frontend | Pendiente |
 | 6 | Revisión ASVS nivel 2, README final, TOTP opcional | Pendiente |
 
@@ -61,7 +61,8 @@ o usa el navegador (`fetch` siempre envía UTF-8).
 ## Qué hay implementado (Fase 1)
 
 - **Registro público** `POST /api/auth/register` con `{"email", "password"}`. Valida en servidor, normaliza
-  el email (minúsculas), fuerza siempre el rol `USER` y deja `email_verified = 0`.
+  el email (minúsculas), fuerza siempre el rol `USER` y deja `email_verified = 0`. Desde la Fase 4 responde
+  `202` con el mismo mensaje exista o no el email (ver Fase 4).
 - **Política de contraseñas:** 12–128 caracteres, sin reglas de composición. Se comprueba *antes* de
   hashear, para que una contraseña enorme no consuma CPU (DoS).
 - **Argon2id** (`Argon2PasswordEncoder(16, 32, 1, 19456, 2)`): sal 16 B, hash 32 B, paralelismo 1,
@@ -124,13 +125,56 @@ o usa el navegador (`fetch` siempre envía UTF-8).
   literal del código (no texto del usuario), lo que impide inyectar líneas falsas en el rastro.
   Para consultarla, abre `data/app.db` con SQLiteMan: `SELECT * FROM audit_log ORDER BY id DESC;`
 
+## Qué hay implementado (Fase 4)
+
+Un único mecanismo de **token de un solo uso** sirve para verificar el email y para recuperar la contraseña:
+256 bits aleatorios, en BD solo su SHA-256 (tabla `one_time_tokens`), caducidad corta, ligado a un propósito
+(un token de verificación no vale para resetear y viceversa) y consumo atómico (`UPDATE ... WHERE used_at IS NULL`).
+Pedir un enlace nuevo anula los anteriores sin usar.
+
+| Endpoint | Qué hace |
+|---|---|
+| `POST /api/auth/register` | Siempre `202` y el mismo mensaje. Si el email es nuevo: crea la cuenta (sin verificar) y envía el enlace de verificación (24 h). Si ya existía: no crea nada y envía un aviso "ya tienes cuenta" sin token |
+| `POST /api/auth/verify-email` `{token}` | Marca el email como verificado |
+| `POST /api/auth/resend-verification` `{email}` | Reenvía el enlace; respuesta idéntica exista o no la cuenta |
+| `POST /api/auth/forgot-password` `{email}` | Siempre `202` y el mismo mensaje; solo envía correo si la cuenta existe y está activa (enlace de **20 min**) |
+| `POST /api/auth/reset-password` `{token, newPassword}` | Cambia la contraseña con el enlace |
+
+- **Login exige email verificado:** con la contraseña correcta pero sin verificar devuelve `403`.
+- **Al resetear la contraseña**, en una sola transacción: se consume el token, se guarda el nuevo hash Argon2id,
+  se **revocan todos los refresh tokens**, se sube `token_version` (los access token vigentes dejan de valer),
+  se limpian fallos y bloqueos y se marca el email como verificado (recibir el enlace lo demuestra).
+  La política de contraseñas se valida **antes** de consumir el token: una contraseña floja no quema el enlace.
+- **Mismo resultado exista o no la cuenta:** registro, olvido de contraseña y reenvío devuelven respuestas idénticas.
+  En el registro se calcula el hash Argon2 también cuando el email ya existía, para igualar tiempos.
+- **Enlaces con el token en el fragmento** (`.../reset-password.html#token=...`): el navegador no envía el
+  fragmento al servidor, así que no queda en logs de acceso ni viaja en la cabecera `Referer`. Las páginas que
+  lo leen y lo mandan por POST llegan en la Fase 5; hasta entonces se prueba con `curl` copiando el token de la consola.
+- **Email simulado:** `EmailService` es una interfaz; `ConsoleEmailService` imprime el mensaje (con el enlace) en la
+  consola del servidor. Para uno real bastaría otra implementación (SMTP, SES...) sin tocar el resto.
+  *En producción nunca se escribirían enlaces con token en los logs.* (En la consola de Windows los acentos
+  pueden verse mal; es solo la codificación de la consola.)
+- **Límites nuevos** (además de los de la Fase 3):
+
+  | Límite | Valor por defecto | Propiedad |
+  |---|---|---|
+  | Peticiones de correo por IP | 10 / hora | `app.ratelimit.mail-ip-per-hour` |
+  | Correos por destinatario (exista o no) | 3 / hora | `app.ratelimit.mail-account-per-hour` |
+  | Canje de enlaces por IP | 20 / minuto | `app.ratelimit.token-ip-per-minute` |
+
+- **Auditoría nueva:** `PASSWORD_RESET_REQUESTED`, `PASSWORD_RESET_DONE`, `PASSWORD_RESET_FAILED`, `EMAIL_VERIFIED`
+  (sin tokens, contraseñas ni emails).
+- **Cambio de contrato respecto a la Fase 1:** el registro pasó de `201`/`409` a `202` uniforme.
+
 ### Estructura
 
 ```
 src/main/java/com/example/login/
   audit/     AuditService, AuditEvent
   auth/      AuthController, AuthService, JwtService, JwtAuthFilter, RefreshTokenService/Repository,
-             LoginRequest, AuthenticatedUser, excepciones
+             AccountRecoveryController/Service (verificación y reset), LoginRequest, AuthenticatedUser, excepciones
+  mail/      EmailService (interfaz), ConsoleEmailService (simulado), AccountMailer (textos y enlaces)
+  token/     OneTimeTokenService (tokens de un solo uso)
   config/    SecurityConfig (Argon2id, cadena de filtros), AdminBootstrap
   security/  PasswordPolicy, TokenHasher (token aleatorio + SHA-256), RateLimitService, LoginAttemptService
   user/      User, Role, RegisterRequest, UserRepository (JDBC), UserService, RegistrationController, excepciones
@@ -155,7 +199,8 @@ los access token (cierre de sesión forzado). `audit_log` no tiene FK para sobre
 - **Una consulta a BD por petición autenticada** a cambio de revocación inmediata (rol, estado y `token_version`).
 - **Dos pestañas refrescando a la vez** con el mismo token cuentan como reutilización y cierran la sesión. El
   frontend (Fase 5) debe serializar los refresh.
-- **El login aún no exige email verificado:** se aplicará en la Fase 4, cuando exista la verificación.
+- **Aviso "verifica tu email" en el login (403):** solo lo recibe quien ya acertó la contraseña, así que no permite
+  enumerar cuentas; a cambio, ese usuario sabe que la cuenta existe (es la suya).
 - **Rate limiting en memoria:** se pierde al reiniciar y no se comparte entre instancias. En producción:
   Bucket4j sobre Redis, o límites en el proxy/gateway.
 - **IP del cliente = `getRemoteAddr()`**, sin confiar en `X-Forwarded-For` (cualquiera puede falsearla). Detrás de un
@@ -166,8 +211,6 @@ los access token (cierre de sesión forzado). `audit_log` no tiene FK para sobre
   más que uno inexistente (milisegundos frente a las decenas de ms de Argon2).
 - **Si falla la escritura de auditoría, falla la petición** (no se traga el error): preferimos no operar sin rastro.
 - **Refresh token con caducidad deslizante de 7 días** y sin límite absoluto de la familia; en producción se añadiría un tope.
-- **Registro con email duplicado → 409 genérico.** Permite saber si un email existe. Es una simplificación
-  temporal: en la Fase 4, con el email de verificación, se responderá igual en ambos casos.
 - Sin `UserDetailsService` automático: se excluye para que Spring no imprima una contraseña aleatoria en el log.
 
 ## Secretos
@@ -176,7 +219,7 @@ Nada de claves ni credenciales en el código. Todo por variables de entorno; `.e
 están en `.gitignore`. `.env.example` solo contiene marcadores, nunca valores reales.
 La contraseña del admin que uses ahora es de prueba: cámbiala por la definitiva cuando termines de revisar.
 
-## Tests (70 en total, todos en verde con `mvn verify`)
+## Tests (92 en total, todos en verde con `mvn verify`)
 
 Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
 
@@ -195,8 +238,18 @@ Unitarios e integración con SQLite en archivo temporal (`target/test-db/`).
   2 minutos; reinicio tras login correcto; aislamiento entre cuentas; límite por cuenta (existente o no), por IP y
   de registro con `429`; y auditoría sin contraseñas, tokens ni emails tecleados.
 
+- **Fase 4 (22):** verificación (el login queda bloqueado hasta verificar; token solo guardado como hash; un solo uso;
+  caducado, inventado y gigante rechazados; reenvío que anula el enlace anterior; respuestas idénticas para cuentas
+  inexistentes o ya verificadas); registro con email existente (misma respuesta, sin segunda cuenta ni token);
+  recuperación (enlace con caducidad de 15-30 min; respuesta idéntica para cuenta existente, inexistente y
+  desactivada; nueva contraseña funciona y la vieja no; un solo uso; revoca refresh y access token; limpia el
+  bloqueo; contraseña débil sin quemar el enlace; nueva solicitud invalida la anterior; token ligado a su
+  propósito; cuenta desactivada tras pedir el enlace); auditoría sin secretos; y límites de correo por destinatario,
+  por IP y de canje de enlaces.
+
 Los tests de rate limiting usan límites bajos y recrean el contexto tras cada test (los cubos viven en memoria);
 el resto de tests cargan límites holgados desde `src/test/resources/config/application.properties`.
 
 Verificado además a mano contra la app arrancada: login, login erróneo, refresh, logout y refresh tras logout
-(Fase 2), y 5 fallos seguidos que bloquean la cuenta incluso con la contraseña correcta (Fase 3).
+(Fase 2), 5 fallos seguidos que bloquean la cuenta incluso con la contraseña correcta (Fase 3), y registro → email simulado →
+verificación → login → olvido de contraseña → reseteo → login con la nueva (Fase 4).

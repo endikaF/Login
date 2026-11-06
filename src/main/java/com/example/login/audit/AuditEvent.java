@@ -9,5 +9,9 @@ public enum AuditEvent {
     RATE_LIMITED,
     LOGOUT,
     LOGOUT_ALL,
-    TOKEN_REUSE      // refresh token ya rotado presentado de nuevo
+    TOKEN_REUSE,     // refresh token ya rotado presentado de nuevo
+    PASSWORD_RESET_REQUESTED,
+    PASSWORD_RESET_DONE,
+    PASSWORD_RESET_FAILED, // enlace inválido, caducado o ya usado
+    EMAIL_VERIFIED
 }

@@ -29,7 +29,8 @@ import org.springframework.test.web.servlet.MvcResult;
  */
 @SpringBootTest(properties = {"ADMIN_EMAIL=", "ADMIN_PASSWORD=", "JWT_SECRET=" + TestDb.JWT_SECRET,
         "app.ratelimit.login-ip-per-minute=5", "app.ratelimit.login-account-per-15min=3",
-        "app.ratelimit.register-ip-per-hour=2"})
+        "app.ratelimit.register-ip-per-hour=2", "app.ratelimit.mail-account-per-hour=3",
+        "app.ratelimit.mail-ip-per-hour=4", "app.ratelimit.token-ip-per-minute=3"})
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class RateLimitIntegrationTest {
@@ -96,10 +97,44 @@ class RateLimitIntegrationTest {
 
     @Test
     void registrationIsLimitedPerIp() throws Exception {
-        assertThat(send("/api/auth/register", "a1@example.com", PASSWORD).getResponse().getStatus()).isEqualTo(201);
-        assertThat(send("/api/auth/register", "a2@example.com", PASSWORD).getResponse().getStatus()).isEqualTo(201);
+        assertThat(send("/api/auth/register", "a1@example.com", PASSWORD).getResponse().getStatus()).isEqualTo(202);
+        assertThat(send("/api/auth/register", "a2@example.com", PASSWORD).getResponse().getStatus()).isEqualTo(202);
         assertThat(send("/api/auth/register", "a3@example.com", PASSWORD).getResponse().getStatus()).isEqualTo(429);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    void fourthResetEmailToTheSameRecipientIsLimitedEvenIfTheAccountDoesNotExist() throws Exception {
+        // Ninguna cuenta existe: el límite por destinatario se aplica igual, así no revela qué emails están registrados.
+        for (int i = 0; i < 3; i++) {
+            assertThat(send("/api/auth/forgot-password", "fantasma@example.com", "x").getResponse().getStatus())
+                    .isEqualTo(202);
+        }
+        MvcResult blocked = send("/api/auth/forgot-password", "fantasma@example.com", "x");
+        assertThat(blocked.getResponse().getStatus()).isEqualTo(429);
+        assertThat(blocked.getResponse().getHeader("Retry-After")).isNotNull();
+    }
+
+    @Test
+    void resetEmailsAreLimitedPerIp() throws Exception {
+        for (int i = 0; i < 4; i++) {
+            assertThat(send("/api/auth/forgot-password", "u" + i + "@example.com", "x").getResponse().getStatus())
+                    .isEqualTo(202);
+        }
+        assertThat(send("/api/auth/forgot-password", "u9@example.com", "x").getResponse().getStatus()).isEqualTo(429);
+    }
+
+    @Test
+    void tokenRedemptionIsLimitedPerIp() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            assertThat(redeem("/api/auth/verify-email", "inventado" + i).getResponse().getStatus()).isEqualTo(400);
+        }
+        assertThat(redeem("/api/auth/verify-email", "inventado9").getResponse().getStatus()).isEqualTo(429);
+    }
+
+    private MvcResult redeem(String path, String token) throws Exception {
+        return mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(Map.of("token", token)))).andReturn();
     }
 
     @Test

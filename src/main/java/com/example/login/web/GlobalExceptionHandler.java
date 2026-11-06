@@ -2,7 +2,9 @@ package com.example.login.web;
 
 import java.util.Map;
 
+import com.example.login.auth.EmailNotVerifiedException;
 import com.example.login.auth.InvalidCredentialsException;
+import com.example.login.auth.InvalidTokenException;
 import com.example.login.security.RateLimitService;
 import com.example.login.user.EmailAlreadyRegisteredException;
 import com.example.login.user.WeakPasswordException;
@@ -53,6 +55,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> badCredentials(InvalidCredentialsException e) {
         // Mensaje idéntico para usuario inexistente, contraseña errónea o cuenta desactivada.
         return error(HttpStatus.UNAUTHORIZED, "Credenciales inválidas.");
+    }
+
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<Map<String, String>> invalidToken(InvalidTokenException e) {
+        // Un solo mensaje para inexistente, caducado, ya usado o de otro propósito.
+        return error(HttpStatus.BAD_REQUEST, "Enlace no válido o caducado.");
+    }
+
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<Map<String, String>> notVerified(EmailNotVerifiedException e) {
+        return error(HttpStatus.FORBIDDEN, "Debes verificar tu email antes de iniciar sesión.");
     }
 
     @ExceptionHandler(RateLimitService.RateLimitedException.class)

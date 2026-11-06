@@ -27,12 +27,12 @@ public class RegistrationController {
     }
 
     @PostMapping("/register")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED) // 202: se procesa y se avisa por email; no se confirma si la cuenta es nueva
     public Map<String, String> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
         // Límite por IP antes de hashear: cada registro cuesta ~19 MiB y CPU de Argon2.
         rateLimit.checkRegisterIp(http.getRemoteAddr());
         users.register(request.email(), request.password());
-        // No se devuelve ningún dato del usuario (ni hash ni id): la respuesta no revela nada reutilizable.
-        return Map.of("message", "Cuenta creada.");
+        // Respuesta idéntica para email nuevo y ya registrado (anti-enumeración). Sin datos del usuario.
+        return Map.of("message", "Si el email es válido, recibirás un correo para verificar tu cuenta.");
     }
 }
