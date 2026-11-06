@@ -22,6 +22,16 @@ spring:
     # Evita que Spring cree un usuario "user" con contraseña aleatoria impresa en el log.
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
+app:
+  jwt:
+    # Vida corta: si un access token se roba, caduca pronto. No se puede revocar antes salvo con token_version.
+    access-ttl-minutes: 10
+  refresh:
+    ttl-days: 7
+  cookie:
+    # Secure: la cookie solo viaja por HTTPS. Los navegadores lo aceptan también en http://localhost.
+    secure: true
+
 server:
   # Solo localhost: no se abre el puerto a la red.
   address: 127.0.0.1

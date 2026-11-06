@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 // ADMIN_* vacíos: un .env local no debe contaminar los tests.
-@SpringBootTest(properties = {"ADMIN_EMAIL=", "ADMIN_PASSWORD="})
+@SpringBootTest(properties = {"ADMIN_EMAIL=", "ADMIN_PASSWORD=", "JWT_SECRET=" + TestDb.JWT_SECRET})
 @AutoConfigureMockMvc
 class RegistrationIntegrationTest {
 
@@ -134,6 +134,6 @@ class RegistrationIntegrationTest {
     @Test
     void otherEndpointsRequireAuthentication() throws Exception {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/notes"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }

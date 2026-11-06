@@ -13,7 +13,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-@SpringBootTest(properties = {"ADMIN_EMAIL=Boss@Example.com", "ADMIN_PASSWORD=contraseña-de-admin-test"})
+@SpringBootTest(properties = {"ADMIN_EMAIL=Boss@Example.com", "ADMIN_PASSWORD=contraseña-de-admin-test",
+        "JWT_SECRET=" + TestDb.JWT_SECRET})
 class AdminBootstrapIntegrationTest {
 
     @DynamicPropertySource

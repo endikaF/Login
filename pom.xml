@@ -48,6 +48,11 @@
       <artifactId>sqlite-jdbc</artifactId>
       <version>3.54.1.0</version>
     </dependency>
+    <!-- JWT con NimbusJwtEncoder/Decoder de Spring Security: firma y validación sin criptografía casera. -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
     <!-- Argon2PasswordEncoder de Spring Security delega en BouncyCastle (no hay Argon2 en el JDK). -->
     <dependency>
       <groupId>org.bouncycastle</groupId>

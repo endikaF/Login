@@ -8,6 +8,9 @@ import java.util.UUID;
 /** Cada contexto de test usa su propio archivo SQLite temporal (dentro de target/, que se limpia y se ignora). */
 public final class TestDb {
 
+    /** Clave ficticia solo para tests (no es ningún secreto real). */
+    public static final String JWT_SECRET = "clave-solo-para-tests-0123456789-abcdefghij";
+
     private TestDb() {
     }
 

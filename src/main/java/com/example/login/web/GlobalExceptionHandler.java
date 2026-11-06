@@ -2,6 +2,7 @@ package com.example.login.web;
 
 import java.util.Map;
 
+import com.example.login.auth.InvalidCredentialsException;
 import com.example.login.user.EmailAlreadyRegisteredException;
 import com.example.login.user.WeakPasswordException;
 
@@ -44,6 +45,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EmailAlreadyRegisteredException.class)
     public ResponseEntity<Map<String, String>> duplicate(EmailAlreadyRegisteredException e) {
         return error(HttpStatus.CONFLICT, "No se pudo completar el registro.");
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, String>> badCredentials(InvalidCredentialsException e) {
+        // Mensaje idéntico para usuario inexistente, contraseña errónea o cuenta desactivada.
+        return error(HttpStatus.UNAUTHORIZED, "Credenciales inválidas.");
     }
 
     @ExceptionHandler(Exception.class)

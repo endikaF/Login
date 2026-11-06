@@ -1,6 +1,7 @@
 package com.example.login.user;
 
 import java.time.Instant;
+import java.util.Optional;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -22,6 +23,33 @@ public class UserRepository {
                 "SELECT COUNT(*) FROM users WHERE email = :email",
                 new MapSqlParameterSource("email", email), Integer.class);
         return count != null && count > 0;
+    }
+
+    public Optional<User> findByEmail(String email) {
+        return findOne("WHERE email = :value", email);
+    }
+
+    public Optional<User> findById(long id) {
+        return findOne("WHERE id = :value", id);
+    }
+
+    // El fragmento WHERE es siempre un literal del código; el valor viaja como parámetro.
+    private Optional<User> findOne(String where, Object value) {
+        return jdbc.query("""
+                SELECT id, email, password_hash, role, enabled, email_verified, token_version
+                FROM users
+                """ + where,
+                new MapSqlParameterSource("value", value),
+                (rs, i) -> new User(rs.getLong("id"), rs.getString("email"), rs.getString("password_hash"),
+                        Role.valueOf(rs.getString("role")), rs.getInt("enabled") == 1,
+                        rs.getInt("email_verified") == 1, rs.getLong("token_version")))
+                .stream().findFirst();
+    }
+
+    /** Invalida de golpe todos los access token del usuario (el filtro JWT compara la versión). */
+    public void incrementTokenVersion(long userId) {
+        jdbc.update("UPDATE users SET token_version = token_version + 1 WHERE id = :id",
+                new MapSqlParameterSource("id", userId));
     }
 
     /**
