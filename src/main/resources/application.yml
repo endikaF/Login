@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: login
+  config:
+    # Carga opcional de .env (formato CLAVE=valor) para desarrollo local; .env está en .gitignore.
+    import: optional:file:.env[.properties]
+  datasource:
+    # foreign_keys=true: SQLite lo trae desactivado; el driver lo ejecuta (PRAGMA) en CADA conexión.
+    # busy_timeout: espera hasta 5 s si otro escritor tiene el bloqueo, en vez de fallar al instante.
+    # journal_mode=WAL: lecturas no bloquean al escritor único.
+    url: jdbc:sqlite:data/app.db?foreign_keys=true&busy_timeout=5000&journal_mode=WAL
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite admite un solo escritor: con una única conexión no hay "database is locked" entre hilos.
+      maximum-pool-size: 1
+      minimum-idle: 1
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+  autoconfigure:
+    # Evita que Spring cree un usuario "user" con contraseña aleatoria impresa en el log.
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+server:
+  # Solo localhost: no se abre el puerto a la red.
+  address: 127.0.0.1
+  port: 8080
+  error:
+    # Nunca exponer trazas ni mensajes internos en la página de error por defecto.
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
+    include-exception: false
