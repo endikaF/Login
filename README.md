@@ -107,6 +107,103 @@ escrito directamente en `-d` llega mal codificado y el servidor responde `400 So
 (correcto: no es UTF-8 válido). Guarda el cuerpo en un archivo UTF-8 y usa `--data-binary @cuerpo.json`,
 o usa el navegador (`fetch` siempre envía UTF-8).
 
+## Guía rápida: arrancar el proyecto, qué se puede hacer y cómo probarlo
+
+### 1. Arrancar (resumen en 4 pasos)
+```powershell
+cd C:\Users\Endika\Desktop\Claude\Login
+Copy-Item .env.example .env        # solo la primera vez; luego rellena las 4 variables (ver «Puesta en marcha»)
+mvn spring-boot:run                # esperar a ver «Started LoginApplication»
+```
+Abre **http://localhost:8080**. Para parar la app, `Ctrl+C`. Las 4 variables obligatorias del `.env` son `ADMIN_EMAIL`,
+`ADMIN_PASSWORD`, `JWT_SECRET` y `TOTP_ENCRYPTION_KEY`.
+
+> **Los emails son simulados:** no llega nada a ninguna bandeja. Cada «correo» (verificación, recuperar contraseña, avisos)
+> se imprime **en la misma consola donde corre la app**, entre las líneas `EMAIL SIMULADO`. Los enlaces están ahí.
+
+### 2. Qué se puede hacer
+
+| Página | Qué puedes hacer ahí |
+|---|---|
+| `/` (`index.html`) | Crear cuenta, iniciar sesión (con segundo paso si tienes 2FA) y llegar a «¿Has olvidado la contraseña?» |
+| `notes.html` | Crear y borrar **tus** notas, cerrar sesión y cerrar sesión en **todos** los dispositivos |
+| `security.html` | Activar o desactivar la verificación en dos pasos (TOTP) y ver tus códigos de recuperación |
+| `admin.html` | Solo `ADMIN`: listar usuarios, activar/desactivar cuentas, cambiar roles, forzar el cierre de sesiones y quitar el 2FA a un usuario |
+| `verify-email.html`, `reset-password.html` | Destino de los enlaces de los emails simulados (verificar la cuenta y elegir contraseña nueva) |
+
+El primer administrador es el que definas con `ADMIN_EMAIL` / `ADMIN_PASSWORD` en el `.env`; se crea al arrancar si no existe.
+
+### 3. Recorrido de pruebas manuales
+
+Cada fila prueba una defensa distinta. Todas se hacen desde el navegador salvo que se indique otra cosa.
+
+| # | Qué haces | Qué debes ver | Qué demuestra |
+|---|---|---|---|
+| 1 | Registrarte con un email nuevo | Mensaje genérico. Repite con el mismo email: **el mismo mensaje** | No se puede averiguar qué emails están registrados |
+| 2 | Intentar entrar sin verificar el email | «Debes verificar tu email antes de iniciar sesión» | Verificación obligatoria |
+| 3 | Copiar de la consola el enlace de verificación, abrirlo y pulsar el botón | «Email verificado». Abrirlo y pulsar otra vez falla | Token de un solo uso |
+| 4 | Entrar y crear una nota con título `<img src=x onerror=alert(1)>` | Aparece como **texto**; no salta ningún `alert` | Protección contra XSS (CSP + `textContent`) |
+| 5 | Fallar la contraseña 5 veces seguidas | Siempre «Credenciales inválidas»; después **ni la correcta** entra (bloqueo de 1 min, luego 2, 4…) | Bloqueo progresivo y respuestas genéricas |
+| 6 | «¿Has olvidado la contraseña?» con un email real y otro inventado | Mismo mensaje en ambos; solo el real imprime un enlace en la consola | Recuperación sin enumeración de usuarios |
+| 7 | Cambiar la contraseña con ese enlace | Se cierran todas tus sesiones y sale un aviso en la consola | Reseteo seguro |
+| 8 | Entrar como admin → «Panel de administración» | Lista de usuarios; en **tu propia fila** «Desactivar» y «Quitar admin» están deshabilitados | Autoprotección del administrador |
+| 9 | Desactivar a otro usuario (con él conectado en otra ventana) | Su sesión deja de funcionar al instante y no puede volver a entrar | Revocación inmediata |
+| 10 | Con un usuario normal, abrir `/admin.html` | Te devuelve a tus notas (la API responde 403) | Control de acceso por rol |
+| 11 | Pulsar «Cerrar sesión en todos los dispositivos» con dos ventanas abiertas | Ambas pierden la sesión | Revocación global |
+
+**Probar que nadie ve datos ajenos (IDOR).** Hacen falta dos usuarios a la vez, y la cookie de sesión es una por navegador:
+usa una **ventana de incógnito** para el segundo. Cada uno debe ver solo sus notas, aunque conozcas el id de una nota ajena.
+
+**Probar la verificación en dos pasos (TOTP).**
+1. Entra en **Seguridad de la cuenta**, escribe tu contraseña y pulsa «Generar clave».
+2. En tu app de autenticación (Google Authenticator, Aegis, Microsoft Authenticator…) elige **«Introducir clave de configuración»**,
+   pega la clave y marca «basado en tiempo». No hay QR a propósito (exigiría una librería más).
+3. Escribe el código de 6 dígitos para confirmar. **Guarda los 8 códigos de recuperación**: solo se muestran una vez.
+4. Cierra sesión y entra otra vez: tras la contraseña te pedirá el código. Pruebas útiles: reutilizar el mismo código (se
+   rechaza), usar un código de recuperación (sirve una vez) y fallar 5 códigos (bloquea la cuenta).
+5. El código con el que activaste ya está «gastado»: para el primer login espera al siguiente intervalo de 30 s.
+
+Si no tienes app de autenticación a mano, este script de Python (solo librería estándar) calcula el código a partir de la
+clave que ves en pantalla; se guarda como `totp.py` y se ejecuta con `python totp.py LACLAVEBASE32`:
+```python
+import base64, hashlib, hmac, struct, sys, time
+key = base64.b32decode(sys.argv[1].upper() + "=" * (-len(sys.argv[1]) % 8))
+digest = hmac.new(key, struct.pack(">Q", int(time.time()) // 30), hashlib.sha1).digest()
+pos = digest[-1] & 15
+print(f"{(struct.unpack('>I', digest[pos:pos+4])[0] & 0x7FFFFFFF) % 10**6:06d}")
+```
+
+### 4. Comprobaciones desde la línea de comandos
+En PowerShell usa `curl.exe` (a secas, `curl` es otro comando):
+```powershell
+curl.exe -s -D - -o NUL http://localhost:8080/index.html                    # cabeceras: CSP, nosniff, X-Frame-Options, Referrer-Policy
+curl.exe -s -o NUL -w "%{http_code}`n" http://localhost:8080/api/notes       # 401: sin sesión no hay acceso
+curl.exe -s -o NUL -w "%{http_code}`n" -X TRACE http://localhost:8080/index.html   # rechazado
+```
+Recuerda lo del apartado «Probar el registro con curl en Windows»: los cuerpos con tildes o `ñ` mejor desde un archivo UTF-8.
+
+### 5. Ver lo que ha pasado en la base de datos
+Abre `data\app.db` con SQLiteMan (mejor con la app parada). Consultas útiles:
+```sql
+SELECT * FROM audit_log ORDER BY id DESC;        -- cada evento de seguridad que hayas provocado: login, bloqueos, reseteos, 2FA, acciones de admin
+SELECT id, email, role, enabled, email_verified, failed_attempts, locked_until FROM users;
+SELECT user_id, substr(secret_enc,1,24) AS inicio, enabled FROM user_totp;   -- el secreto TOTP está cifrado, no en claro
+```
+Nunca verás contraseñas ni tokens en claro: solo hashes.
+
+### 6. Tests automáticos
+```powershell
+mvn verify        # debe acabar en «Tests run: 161, Failures: 0» y BUILD SUCCESS
+```
+Usan archivos SQLite temporales en `target\`, así que **no tocan tu `data\app.db`**.
+
+### 7. Si algo no sale como esperas
+- **«Demasiados intentos»:** es el *rate limiting*, que vive en memoria. Probar mucho seguido (más de 20 logins por minuto, más de
+  10 por cuenta en 15 minutos, o más de 3 correos por destinatario y hora) lo activa. Espera lo que indique o reinicia la app.
+- **Cuenta bloqueada tras fallos:** se desbloquea sola (1, 2, 4… hasta 30 min) o con un reseteo de contraseña.
+- **Empezar de cero:** para la app y borra la carpeta `data\`; se regenera vacía en el siguiente arranque (y se vuelve a crear el admin).
+- Más casos en la tabla «Problemas frecuentes» de arriba.
+
 ## Qué hay implementado (Fase 1)
 
 - **Registro público** `POST /api/auth/register` con `{"email", "password"}`. Valida en servidor, normaliza
