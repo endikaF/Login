@@ -15,8 +15,8 @@
   autorización de varios usuarios**. El tema es un tablero personal de notas: solo existe para tener un recurso privado por
   usuario con el que probar la autorización.
 - **Estado:** **proyecto completo.** Las fases 0 a 6 del plan están hechas y además el 2FA opcional (TOTP) y el **rediseño visual
-  del frontend** (libreta naranja, papel cuadriculado; sección 6). **161 tests en verde** (el rediseño solo toca frontend; antes de
-  darlo por bueno conviene repetir `mvn verify`).
+  del frontend** (libreta naranja, papel cuadriculado; sección 6). **161 tests en verde** (`mvn verify` repetido el 2026-11-09 sobre
+  `main` con el rediseño incluido: `BUILD SUCCESS`, 0 fallos).
 - **Todo está commiteado y subido a GitHub** (comprobado: `git status` limpio, `main` al día con `origin/main`).
 - **No queda ninguna tarea obligatoria pendiente.** Solo mejoras opcionales (sección 7).
 
@@ -177,9 +177,9 @@ Frontend en `src/main/resources/static/`: `index`, `notes`, `security`, `admin`,
     primer viewport, movimiento firma). Es la referencia para mantener coherente cualquier cambio visual futuro.
   - `.impeccable/mocks|questions|review/`: estado local de la herramienta (llevan su propio `.gitignore` con `*`, no se commitean).
   - **Pendiente declarado en ese contrato:** la revisión final y `DESIGN.md` (sistema de diseño derivado de lo entregado) **no se
-    llegaron a generar**. Verificación tras el rediseño: lo único documentado es tu prueba manual del 2026-11-08 (registro, login,
-    TOTP, notas, logout, reseteo). No consta que se haya revisado cada página (admin, verify-email, móvil, modo oscuro) ni
-    que se ejecutara `mvn verify` justo después del cambio.
+    llegaron a generar**. Verificación tras el rediseño: `mvn verify` en verde el 2026-11-09 (161 tests, incluidos los de guardia del
+    frontend) y tu prueba manual del 2026-11-08 (registro, login, TOTP, notas, logout, reseteo). **No consta** revisión
+    visual de cada página (admin, verify-email, móvil, modo oscuro); los tests no cubren el aspecto.
 
 ### Tablas (`src/main/resources/schema.sql`, `CREATE TABLE IF NOT EXISTS`)
 `users`, `refresh_tokens`, `one_time_tokens`, `notes`, `audit_log`, `user_totp`, `totp_recovery_codes`.
