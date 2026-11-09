@@ -4,7 +4,8 @@
 > se dejó. Resume qué hay hecho, cómo está montado, las reglas de trabajo acordadas, lo que falta y las trampas ya conocidas.
 > **No contiene ningún secreto**; los valores reales viven solo en tu `.env` local (ignorado por git).
 >
-> Última actualización: **2026-11-08** · Último commit: `c6d3a4f` · Rama `main`, sincronizada con `origin/main`.
+> Última actualización: **2026-11-09** · Último commit de código: `97595d2` (rediseño visual) · Rama `main`, sincronizada con `origin/main`
+> (única rama: la del rediseño, `worktree-rediseno-frontend`, ya integrada, se eliminó).
 
 ---
 
@@ -13,7 +14,9 @@
 - **Qué es:** web con backend Java 21 / Spring Boot 3.5.16 / Spring Security 6, cuyo núcleo es la **autenticación y
   autorización de varios usuarios**. El tema es un tablero personal de notas: solo existe para tener un recurso privado por
   usuario con el que probar la autorización.
-- **Estado:** **proyecto completo.** Las fases 0 a 6 del plan están hechas y además el 2FA opcional (TOTP). **161 tests en verde.**
+- **Estado:** **proyecto completo.** Las fases 0 a 6 del plan están hechas y además el 2FA opcional (TOTP) y el **rediseño visual
+  del frontend** (libreta naranja, papel cuadriculado; sección 6). **161 tests en verde** (el rediseño solo toca frontend; antes de
+  darlo por bueno conviene repetir `mvn verify`).
 - **Todo está commiteado y subido a GitHub** (comprobado: `git status` limpio, `main` al día con `origin/main`).
 - **No queda ninguna tarea obligatoria pendiente.** Solo mejoras opcionales (sección 7).
 
@@ -130,6 +133,8 @@ Los emails son **simulados**: aparecen en la consola de la app bajo `EMAIL SIMUL
 | 6 | Revisión ASVS, límite de tamaño de cuerpos, vida absoluta de sesión, aviso de cambio de contraseña, README | `0b8e437` |
 | extra | Segundo factor TOTP con códigos de recuperación | `8271e2f` |
 | extra | Guía rápida de uso y pruebas en el README | `c6d3a4f` |
+| extra | **Rediseño visual completo del frontend** (8 páginas, `style.css`, `setupShell()` en `api.js`, README) | `97595d2` |
+| — | Este archivo (`Notas.md`) | `46f02a8` |
 
 Contador de tests por hito: 20 → 48 → 70 → 92 → 123 → 129 → **161**.
 
@@ -154,6 +159,27 @@ Contador de tests por hito: 20 → 48 → 70 → 92 → 123 → 129 → **161**.
 
 Frontend en `src/main/resources/static/`: `index`, `notes`, `security`, `admin`, `forgot-password`, `reset-password`, `verify-email`
 (`.html`) + `css/style.css` + `js/*.js` (módulos, sin código en línea).
+
+### Rediseño visual (commit `97595d2`)
+- **Qué es:** nuevo sistema visual para las 8 páginas. Metáfora de **libreta de espiral**: cabecera y panel de acceso en naranja de
+  cubierta (`#ff6a1a`) **siempre con tinta negra** (nunca blanco sobre naranja, por contraste), lienzo de papel cuadriculado con
+  **celda fija de 24 px** como módulo de espaciado, y hojas con **microperforación** en el borde superior (degradado radial repetido).
+  Claro/oscuro según el sistema, movimiento reducido respetado, tipografía del sistema.
+- **Novedades de interfaz:** acceso en dos mitades con selector «Entrar / Crear cuenta» (pestañas con teclado); cabecera común con
+  navegación, avatar y menú de cuenta (`setupShell()` en `js/api.js`); notas con panel de escritura, hojas con fecha y estado vacío;
+  seguridad con indicador de estado y pasos numerados; admin con rol/estado como etiquetas y tabla que pasa a fichas en móvil.
+- **[TRADE-OFF] Sin fuentes web:** la CSP no permite fuentes externas. En producción se alojarían en el mismo origen y se añadiría
+  `font-src 'self'`. La CSP **no cambió** con el rediseño.
+- **Cómo se hizo:** con la skill **Impeccable** (se deduce de sus archivos `PRODUCT.md` y `.impeccable/`), en un worktree/rama aparte (`worktree-rediseno-frontend`) que ya se integró en `main`
+  y se eliminó. Su contexto de diseño se rescató a la raíz del repo:
+  - `PRODUCT.md`: usuarios, propósito, restricciones (CSP, sin `innerHTML`/`localStorage`, IDs que usa el JS, contraste AA, español).
+  - `.impeccable/surfaces/src-main-resources-static-index-html.md`: el **contrato de dirección** del rediseño (tesis, mundo propio,
+    primer viewport, movimiento firma). Es la referencia para mantener coherente cualquier cambio visual futuro.
+  - `.impeccable/mocks|questions|review/`: estado local de la herramienta (llevan su propio `.gitignore` con `*`, no se commitean).
+  - **Pendiente declarado en ese contrato:** la revisión final y `DESIGN.md` (sistema de diseño derivado de lo entregado) **no se
+    llegaron a generar**. Verificación tras el rediseño: lo único documentado es tu prueba manual del 2026-11-08 (registro, login,
+    TOTP, notas, logout, reseteo). No consta que se haya revisado cada página (admin, verify-email, móvil, modo oscuro) ni
+    que se ejecutara `mvn verify` justo después del cambio.
 
 ### Tablas (`src/main/resources/schema.sql`, `CREATE TABLE IF NOT EXISTS`)
 `users`, `refresh_tokens`, `one_time_tokens`, `notes`, `audit_log`, `user_totp`, `totp_recovery_codes`.
@@ -242,7 +268,8 @@ con 2FA, un login consume dos «fichas» del límite por cuenta.
 
 1. `Notas.md` (este) · 2. `README.md` (uso, decisiones y tests por fase) · 3. `SECURITY-REVIEW.md` (qué cubre y qué no) ·
 4. `src/main/resources/application.yml` y `schema.sql` · 5. `config/SecurityConfig.java` (el corazón de la seguridad) ·
-6. `auth/AuthService.java` (login, refresh, MFA).
+6. `auth/AuthService.java` (login, refresh, MFA) · 7. **Si se va a tocar el frontend:** `PRODUCT.md` y
+`.impeccable/surfaces/src-main-resources-static-index-html.md` (restricciones y dirección visual del rediseño).
 
 Nota: Claude también guarda una memoria automática del proyecto (commits en español, README en cada fase, el push lo haces tú, estado
 general), pero **este archivo es la referencia completa**; si algo difiere, manda este (y el código).
