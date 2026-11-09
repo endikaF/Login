@@ -3,51 +3,90 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ff6a1a">
   <title>Acceso · Tablero de notas</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111317'/%3E%3Ccircle cx='8' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Ccircle cx='16' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Ccircle cx='24' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Cpath d='M8 14h16M8 19h16M8 24h9' stroke='%23ff6a1a' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
   <script type="module" src="js/index.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Saltar al contenido</a>
-  <header><h1>Tablero de notas</h1></header>
-  <main id="main">
-    <section class="card" aria-labelledby="login-title">
-      <h2 id="login-title">Iniciar sesión</h2>
-      <form id="login-form">
-        <label for="login-email">Email</label>
-        <input id="login-email" type="email" autocomplete="username" required maxlength="254">
-        <label for="login-password">Contraseña</label>
-        <input id="login-password" type="password" autocomplete="current-password" required maxlength="128">
-        <button type="submit">Entrar</button>
-      </form>
-      <p id="login-msg" class="msg" aria-live="polite"></p>
-      <p><a href="forgot-password.html">¿Has olvidado la contraseña?</a></p>
-    </section>
+  <div class="auth">
+    <aside class="auth-cover">
+      <a class="brand" href="index.html">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><circle class="hole" cx="8" cy="7" r="1.6"/><circle class="hole" cx="16" cy="7" r="1.6"/><circle class="hole" cx="24" cy="7" r="1.6"/><path class="rule" d="M8 14h16M8 19h16M8 24h9"/></svg>
+        <span>Tablero de notas</span>
+      </a>
+      <div>
+        <h1>Tus notas. Solo tuyas.</h1>
+        <p class="lede">Un tablero personal donde cada nota pertenece a una sola cuenta.</p>
+        <ul class="facts">
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Cada nota es privada: solo se muestra con tu sesión.</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Las sesiones caducan y puedes cerrarlas en todos tus dispositivos.</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>Verificación en dos pasos opcional, con códigos de recuperación.</li>
+        </ul>
+      </div>
+      <div class="pad" aria-hidden="true">
+        <div class="back"></div>
+        <div class="page-sheet">
+          <h2>Lista para el viernes</h2>
+          <p>Reservar mesa a las 21:00, recoger las entradas y avisar del cambio de sala.</p>
+          <p class="meta">9 nov · 18:42</p>
+        </div>
+      </div>
+    </aside>
 
-    <section id="mfa-section" class="card" aria-labelledby="mfa-title" hidden>
-      <h2 id="mfa-title">Verificación en dos pasos</h2>
-      <form id="mfa-form">
-        <label for="mfa-code">Código de tu app de autenticación (6 dígitos) o código de recuperación</label>
-        <input id="mfa-code" autocomplete="one-time-code" required maxlength="40">
-        <button type="submit">Verificar</button>
-      </form>
-      <p id="mfa-msg" class="msg" aria-live="polite"></p>
-    </section>
+    <main id="main" class="auth-main">
+      <div class="auth-panel">
+        <div class="seg" role="tablist" aria-label="Acceso a la cuenta" id="seg">
+          <button id="tab-login" type="button" role="tab" aria-selected="true" aria-controls="panel-login">Entrar</button>
+          <button id="tab-register" type="button" role="tab" aria-selected="false" aria-controls="panel-register" tabindex="-1">Crear cuenta</button>
+        </div>
 
-    <section class="card" aria-labelledby="register-title">
-      <h2 id="register-title">Crear cuenta</h2>
-      <form id="register-form">
-        <label for="register-email">Email</label>
-        <input id="register-email" type="email" autocomplete="email" required maxlength="254">
-        <label for="register-password">Contraseña</label>
-        <input id="register-password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"
-               aria-describedby="register-hint">
-        <p id="register-hint" class="hint">Entre 12 y 128 caracteres. Una frase larga es mejor que una palabra con símbolos.</p>
-        <button type="submit">Registrarme</button>
-      </form>
-      <p id="register-msg" class="msg" aria-live="polite"></p>
-    </section>
-  </main>
+        <section id="panel-login" class="sheet" role="tabpanel" aria-labelledby="tab-login">
+          <h2>Bienvenido de nuevo</h2>
+          <p>Entra para ver tus notas.</p>
+          <form id="login-form">
+            <label for="login-email">Email</label>
+            <input id="login-email" type="email" autocomplete="username" required maxlength="254">
+            <div class="field-row">
+              <label for="login-password">Contraseña</label>
+              <a href="forgot-password.html">¿La has olvidado?</a>
+            </div>
+            <input id="login-password" type="password" autocomplete="current-password" required maxlength="128">
+            <button type="submit">Entrar</button>
+          </form>
+          <p id="login-msg" class="msg" aria-live="polite"></p>
+        </section>
+
+        <section id="mfa-section" class="sheet" aria-labelledby="mfa-title" hidden>
+          <h2 id="mfa-title">Verificación en dos pasos</h2>
+          <p>Tu contraseña es correcta. Falta el segundo paso.</p>
+          <form id="mfa-form">
+            <label for="mfa-code">Código de 6 dígitos de tu app, o un código de recuperación</label>
+            <input id="mfa-code" autocomplete="one-time-code" required maxlength="40">
+            <button type="submit">Verificar</button>
+          </form>
+          <p id="mfa-msg" class="msg" aria-live="polite"></p>
+        </section>
+
+        <section id="panel-register" class="sheet" role="tabpanel" aria-labelledby="tab-register" hidden>
+          <h2>Crea tu cuenta</h2>
+          <p>Recibirás un enlace para verificar tu email.</p>
+          <form id="register-form">
+            <label for="register-email">Email</label>
+            <input id="register-email" type="email" autocomplete="email" required maxlength="254">
+            <label for="register-password">Contraseña</label>
+            <input id="register-password" type="password" autocomplete="new-password" required minlength="12" maxlength="128"
+                   aria-describedby="register-hint">
+            <p id="register-hint" class="hint">Entre 12 y 128 caracteres. Una frase larga es mejor que una palabra con símbolos.</p>
+            <button type="submit">Crear cuenta</button>
+          </form>
+          <p id="register-msg" class="msg" aria-live="polite"></p>
+        </section>
+      </div>
+    </main>
+  </div>
 </body>
 </html>

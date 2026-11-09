@@ -1,8 +1,16 @@
-import { api, errorText, logout, requireSession, say } from './api.js';
+import { api, errorText, requireSession, say, setupShell } from './api.js';
 
 const msg = document.getElementById('msg');
 const tbody = document.getElementById('users');
 let myEmail = null;
+
+/** Etiqueta de estado: el texto lleva el significado; el color y el punto solo lo acompañan. */
+function chip(text, kind) {
+  const span = document.createElement('span');
+  span.className = 'chip ' + kind;
+  span.textContent = text;
+  return span;
+}
 
 function button(label, onClick, { danger = false, disabled = false, title = '' } = {}) {
   const b = document.createElement('button');
@@ -26,17 +34,41 @@ function render(users) {
   for (const user of users) {
     const isMe = user.email === myEmail;
     const row = document.createElement('tr');
-    const cells = [user.email, user.role,
-      (user.enabled ? 'Activa' : 'Desactivada') + (user.emailVerified ? '' : ' · sin verificar') + (user.locked ? ' · bloqueada' : '')
-        + (user.totpEnabled ? ' · 2FA' : '')];
-    for (const text of cells) {
-      const td = document.createElement('td');
-      td.textContent = text;
-      row.append(td);
-    }
+    // Email con su inicial
+    const userCell = document.createElement('td');
+    const who = document.createElement('div');
+    who.className = 'user-cell';
+    const initial = document.createElement('span');
+    initial.className = 'avatar';
+    initial.setAttribute('aria-hidden', 'true');
+    initial.textContent = user.email.charAt(0);
+    const email = document.createElement('span');
+    email.textContent = user.email;
+    who.append(initial, email);
+    userCell.append(who);
+
+    // Rol y estado como etiquetas: cada una dice su texto, el color solo acompaña
+    const roleCell = document.createElement('td');
+    roleCell.dataset.label = 'Rol';
+    roleCell.append(chip(user.role === 'ADMIN' ? 'Administrador' : 'Usuario', user.role === 'ADMIN' ? 'role-admin plain' : 'plain'));
+
+    const stateCell = document.createElement('td');
+    stateCell.dataset.label = 'Estado';
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    chips.append(chip(user.enabled ? 'Activa' : 'Desactivada', user.enabled ? 'ok' : 'bad'));
+    if (!user.emailVerified) chips.append(chip('Sin verificar', 'warn'));
+    if (user.locked) chips.append(chip('Bloqueada', 'bad'));
+    if (user.totpEnabled) chips.append(chip('2FA', 'ok'));
+    stateCell.append(chips);
+
     const actions = document.createElement('td');
+    actions.dataset.label = 'Acciones';
+    const buttons = document.createElement('div');
+    buttons.className = 'actions';
+    actions.append(buttons);
     const selfHint = 'No puedes aplicártelo a ti mismo';
-    actions.append(
+    buttons.append(
       button(user.enabled ? 'Desactivar' : 'Activar', () => {
         if (!user.enabled || confirm('¿Desactivar la cuenta de ' + user.email + '? Se cerrarán sus sesiones.')) {
           act('/api/admin/users/' + user.id + '/enabled', { enabled: !user.enabled },
@@ -52,13 +84,13 @@ function render(users) {
       button('Cerrar sus sesiones', () => act('/api/admin/users/' + user.id + '/logout', undefined, 'Sesiones cerradas.')),
     );
     if (user.totpEnabled) {
-      actions.append(button('Quitar 2FA', () => {
+      buttons.append(button('Quitar 2FA', () => {
         if (confirm('¿Quitar la verificación en dos pasos a ' + user.email + '? Hazlo solo si has comprobado su identidad.')) {
           act('/api/admin/users/' + user.id + '/totp/reset', undefined, 'Verificación en dos pasos eliminada.');
         }
       }, { danger: true }));
     }
-    row.append(actions);
+    row.append(userCell, roleCell, stateCell, actions);
     tbody.append(row);
   }
 }
@@ -69,11 +101,9 @@ async function load() {
   else say(msg, await errorText(response, 'No se pudo cargar la lista.'), 'error');
 }
 
-document.getElementById('logout').addEventListener('click', logout);
-
 const me = await requireSession();
 if (me) {
   // El servidor es quien manda (devuelve 403 a un USER); esta redirección solo evita mostrar una pantalla vacía.
   if (me.role !== 'ADMIN') location.replace('notes.html');
-  else { myEmail = me.email; await load(); }
+  else { setupShell(me); myEmail = me.email; await load(); }
 }

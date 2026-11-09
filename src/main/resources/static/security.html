@@ -3,72 +3,101 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ff6a1a">
   <title>Seguridad de la cuenta · Tablero de notas</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111317'/%3E%3Ccircle cx='8' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Ccircle cx='16' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Ccircle cx='24' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Cpath d='M8 14h16M8 19h16M8 24h9' stroke='%23ff6a1a' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
   <script type="module" src="js/security.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Saltar al contenido</a>
-  <header>
-    <h1>Seguridad de la cuenta</h1>
-    <nav class="row" aria-label="Navegación">
-      <a href="notes.html">Mis notas</a>
-      <button id="logout" class="secondary" type="button">Cerrar sesión</button>
-    </nav>
+  <header class="topbar">
+    <div class="topbar-in">
+      <a class="brand" href="notes.html" aria-label="Tablero de notas, inicio">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><circle class="hole" cx="8" cy="7" r="1.6"/><circle class="hole" cx="16" cy="7" r="1.6"/><circle class="hole" cx="24" cy="7" r="1.6"/><path class="rule" d="M8 14h16M8 19h16M8 24h9"/></svg>
+        <span>Tablero</span>
+      </a>
+      <nav class="tabs" aria-label="Principal">
+        <a href="notes.html">Notas</a>
+        <a href="security.html" aria-current="page">Seguridad</a>
+        <a id="admin-link" href="admin.html" hidden>Administración</a>
+      </nav>
+      <details class="account">
+        <summary aria-label="Menú de la cuenta"><span id="avatar" class="avatar" aria-hidden="true"></span><span id="who" class="who"></span></summary>
+        <div class="account-panel">
+          <button id="logout" type="button">Cerrar sesión</button>
+          <button id="logout-all" type="button">Cerrar sesión en todos los dispositivos</button>
+        </div>
+      </details>
+    </div>
   </header>
-  <main id="main">
+
+  <main id="main" class="page">
+    <div class="page-head">
+      <h1>Seguridad</h1>
+      <p>Añade un segundo paso al iniciar sesión para proteger tu cuenta aunque alguien conozca tu contraseña.</p>
+    </div>
     <p id="msg" class="msg" aria-live="polite"></p>
 
-    <section class="card" aria-labelledby="status-title">
-      <h2 id="status-title">Verificación en dos pasos (TOTP)</h2>
-      <p id="status">Comprobando…</p>
-      <p class="hint">Además de la contraseña, se pedirá un código de 6 dígitos de una app de autenticación
-        (Google Authenticator, Aegis, Authy, Microsoft Authenticator…).</p>
-    </section>
+    <div class="stack">
+      <section class="sheet" aria-labelledby="status-title">
+        <div class="status-row">
+          <div>
+            <h2 id="status-title">Verificación en dos pasos</h2>
+            <p>Además de la contraseña, se pedirá un código de 6 dígitos de una app de autenticación
+              (Google Authenticator, Aegis, Authy, Microsoft Authenticator…).</p>
+          </div>
+          <span id="status" class="status" role="status">Comprobando…</span>
+        </div>
+      </section>
 
-    <section id="enable-section" class="card" aria-labelledby="enable-title" hidden>
-      <h2 id="enable-title">Activar</h2>
-      <form id="setup-form">
-        <!-- Campo de usuario oculto: lo piden los gestores de contraseñas y los lectores de pantalla en formularios de contraseña -->
-        <input type="text" name="username" autocomplete="username" hidden>
-        <label for="setup-password">Tu contraseña actual</label>
-        <input id="setup-password" type="password" autocomplete="current-password" required maxlength="128">
-        <button type="submit">Generar clave</button>
-      </form>
-
-      <div id="confirm-block" hidden>
-        <p>1. En tu app de autenticación elige «Añadir cuenta» → «Introducir clave de configuración» y escribe esta clave:</p>
-        <p><code id="secret"></code></p>
-        <p class="hint">Cuenta: tu email · Tipo: basado en tiempo · 6 dígitos · 30 segundos. Si tu app lo permite también puedes
-          <a id="otpauth-link" href="#">abrir el enlace de configuración</a>.</p>
-        <p>2. Escribe el código de 6 dígitos que muestra la app para confirmar:</p>
-        <form id="enable-form">
-          <label for="enable-code">Código de 6 dígitos</label>
-          <input id="enable-code" inputmode="numeric" autocomplete="one-time-code" required maxlength="6" pattern="[0-9]{6}">
-          <button type="submit">Confirmar y activar</button>
+      <section id="enable-section" class="sheet" aria-labelledby="enable-title" hidden>
+        <h2 id="enable-title">Activar la verificación</h2>
+        <h3 class="step-title"><span class="step-n" aria-hidden="true">1</span>Confirma tu contraseña</h3>
+        <form id="setup-form">
+          <!-- Campo de usuario oculto: lo piden los gestores de contraseñas y los lectores de pantalla en formularios de contraseña -->
+          <input type="text" name="username" autocomplete="username" hidden>
+          <label for="setup-password">Tu contraseña actual</label>
+          <input id="setup-password" type="password" autocomplete="current-password" required maxlength="128">
+          <button type="submit">Generar clave</button>
         </form>
-      </div>
-    </section>
 
-    <section id="recovery-section" class="card" aria-labelledby="recovery-title" hidden>
-      <h2 id="recovery-title">Códigos de recuperación</h2>
-      <p><strong>Guárdalos ahora en un lugar seguro.</strong> No volverán a mostrarse. Cada uno sirve una sola vez si pierdes
-        el dispositivo.</p>
-      <pre id="recovery-codes" tabindex="0" aria-label="Códigos de recuperación"></pre>
-    </section>
+        <div id="confirm-block" hidden>
+          <h3 class="step-title"><span class="step-n" aria-hidden="true">2</span>Añade la clave a tu app</h3>
+          <p>En tu app elige «Añadir cuenta» → «Introducir clave de configuración» y escribe esta clave:</p>
+          <code id="secret" class="secret"></code>
+          <p class="hint">Cuenta: tu email · Tipo: basado en tiempo · 6 dígitos · 30 segundos. Si tu app lo permite también puedes
+            <a id="otpauth-link" href="#">abrir el enlace de configuración</a>.</p>
+          <h3 class="step-title"><span class="step-n" aria-hidden="true">3</span>Escribe el código que muestra</h3>
+          <form id="enable-form">
+            <label for="enable-code">Código de 6 dígitos</label>
+            <input id="enable-code" inputmode="numeric" autocomplete="one-time-code" required maxlength="6" pattern="[0-9]{6}">
+            <button type="submit">Confirmar y activar</button>
+          </form>
+        </div>
+      </section>
 
-    <section id="disable-section" class="card" aria-labelledby="disable-title" hidden>
-      <h2 id="disable-title">Desactivar</h2>
-      <form id="disable-form">
-        <input type="text" name="username" autocomplete="username" hidden>
-        <label for="disable-password">Tu contraseña actual</label>
-        <input id="disable-password" type="password" autocomplete="current-password" required maxlength="128">
-        <label for="disable-code">Código de la app o código de recuperación</label>
-        <input id="disable-code" autocomplete="one-time-code" required maxlength="40">
-        <button type="submit" class="danger">Desactivar verificación en dos pasos</button>
-      </form>
-    </section>
+      <section id="recovery-section" class="sheet" aria-labelledby="recovery-title" hidden>
+        <h2 id="recovery-title">Códigos de recuperación</h2>
+        <p class="callout">Guárdalos ahora en un lugar seguro. No volverán a mostrarse.</p>
+        <p>Cada código sirve una sola vez si pierdes el dispositivo.</p>
+        <pre id="recovery-codes" class="codes" tabindex="0" aria-label="Códigos de recuperación"></pre>
+      </section>
+
+      <section id="disable-section" class="sheet danger-zone" aria-labelledby="disable-title" hidden>
+        <h2 id="disable-title">Desactivar la verificación</h2>
+        <p>Tu cuenta volverá a depender solo de la contraseña.</p>
+        <form id="disable-form">
+          <input type="text" name="username" autocomplete="username" hidden>
+          <label for="disable-password">Tu contraseña actual</label>
+          <input id="disable-password" type="password" autocomplete="current-password" required maxlength="128">
+          <label for="disable-code">Código de la app o código de recuperación</label>
+          <input id="disable-code" autocomplete="one-time-code" required maxlength="40">
+          <button type="submit" class="danger">Desactivar verificación en dos pasos</button>
+        </form>
+      </section>
+    </div>
   </main>
 </body>
 </html>

@@ -1,4 +1,4 @@
-import { api, errorText, logout, requireSession, say } from './api.js';
+import { api, errorText, requireSession, say, setupShell } from './api.js';
 
 const msg = document.getElementById('msg');
 const statusText = document.getElementById('status');
@@ -9,7 +9,8 @@ const confirmBlock = document.getElementById('confirm-block');
 const setupForm = document.getElementById('setup-form');
 
 function showState(enabled) {
-  statusText.textContent = enabled ? 'Estado: ACTIVADA.' : 'Estado: desactivada.';
+  statusText.textContent = enabled ? 'Activada' : 'Desactivada';
+  statusText.className = 'status ' + (enabled ? 'on' : 'off');
   enableSection.hidden = enabled;
   disableSection.hidden = !enabled;
 }
@@ -64,10 +65,9 @@ document.getElementById('disable-form').addEventListener('submit', async (event)
   say(msg, 'Verificación en dos pasos desactivada.', 'ok');
 });
 
-document.getElementById('logout').addEventListener('click', logout);
-
 const me = await requireSession();
 if (me) {
+  setupShell(me);
   // Rellena los campos de usuario ocultos con el email de la cuenta (para gestores de contraseñas).
   document.querySelectorAll('input[name="username"]').forEach((input) => { input.value = me.email; });
   showState(me.totpEnabled);

@@ -3,41 +3,68 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ff6a1a">
   <title>Mis notas · Tablero de notas</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111317'/%3E%3Ccircle cx='8' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Ccircle cx='16' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Ccircle cx='24' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Cpath d='M8 14h16M8 19h16M8 24h9' stroke='%23ff6a1a' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
   <script type="module" src="js/notes.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Saltar al contenido</a>
-  <header>
-    <h1>Mis notas</h1>
-    <nav class="row" aria-label="Cuenta">
-      <span id="who" class="badge"></span>
-      <a href="security.html">Seguridad de la cuenta</a>
-      <a id="admin-link" href="admin.html" hidden>Panel de administración</a>
-      <button id="logout" class="secondary" type="button">Cerrar sesión</button>
-      <button id="logout-all" class="secondary" type="button">Cerrar sesión en todos los dispositivos</button>
-    </nav>
+  <header class="topbar">
+    <div class="topbar-in">
+      <a class="brand" href="notes.html" aria-label="Tablero de notas, inicio">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><circle class="hole" cx="8" cy="7" r="1.6"/><circle class="hole" cx="16" cy="7" r="1.6"/><circle class="hole" cx="24" cy="7" r="1.6"/><path class="rule" d="M8 14h16M8 19h16M8 24h9"/></svg>
+        <span>Tablero</span>
+      </a>
+      <nav class="tabs" aria-label="Principal">
+        <a href="notes.html" aria-current="page">Notas</a>
+        <a href="security.html">Seguridad</a>
+        <a id="admin-link" href="admin.html" hidden>Administración</a>
+      </nav>
+      <details class="account">
+        <summary aria-label="Menú de la cuenta"><span id="avatar" class="avatar" aria-hidden="true"></span><span id="who" class="who"></span></summary>
+        <div class="account-panel">
+          <button id="logout" type="button">Cerrar sesión</button>
+          <button id="logout-all" type="button">Cerrar sesión en todos los dispositivos</button>
+        </div>
+      </details>
+    </div>
   </header>
-  <main id="main">
-    <section class="card" aria-labelledby="new-title">
-      <h2 id="new-title">Nueva nota</h2>
-      <form id="note-form">
-        <label for="note-title">Título</label>
-        <input id="note-title" required maxlength="100">
-        <label for="note-body">Texto</label>
-        <textarea id="note-body" maxlength="5000"></textarea>
-        <button type="submit">Guardar nota</button>
-      </form>
-      <p id="msg" class="msg" aria-live="polite"></p>
-    </section>
 
-    <section class="card" aria-labelledby="list-title">
-      <h2 id="list-title">Tus notas</h2>
-      <p id="empty" class="hint" hidden>Todavía no tienes notas.</p>
-      <ul id="notes" class="notes"></ul>
-    </section>
+  <main id="main" class="page">
+    <div class="page-head">
+      <h1>Mis notas</h1>
+      <p>Solo tú puedes verlas, y solo mientras tengas la sesión abierta.</p>
+    </div>
+    <p id="msg" class="msg" aria-live="polite"></p>
+
+    <div class="notes-layout">
+      <section class="sheet composer" aria-labelledby="new-title">
+        <h2 id="new-title">Nueva nota</h2>
+        <form id="note-form">
+          <label for="note-title">Título</label>
+          <input id="note-title" required maxlength="100">
+          <label for="note-body">Texto</label>
+          <textarea id="note-body" maxlength="5000"></textarea>
+          <button type="submit">Guardar nota</button>
+        </form>
+      </section>
+
+      <section aria-labelledby="list-title">
+        <div class="list-head">
+          <h2 id="list-title">Más recientes</h2>
+          <span id="count" class="count"></span>
+        </div>
+        <div id="empty" class="empty" hidden>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+          <strong>Todavía no tienes notas</strong>
+          <p>Escribe la primera en el panel y aparecerá aquí.</p>
+        </div>
+        <ul id="notes" class="notes enter"></ul>
+      </section>
+    </div>
   </main>
 </body>
 </html>

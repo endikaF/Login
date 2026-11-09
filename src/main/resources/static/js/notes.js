@@ -1,12 +1,20 @@
-import { api, errorText, logout, requireSession, say } from './api.js';
+import { api, errorText, requireSession, say, setupShell } from './api.js';
 
 const msg = document.getElementById('msg');
 const list = document.getElementById('notes');
 const empty = document.getElementById('empty');
+const count = document.getElementById('count');
+const dateFormat = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+function when(iso) {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 function render(notes) {
   list.replaceChildren();
   empty.hidden = notes.length > 0;
+  count.textContent = notes.length === 0 ? '' : notes.length + (notes.length === 1 ? ' nota' : ' notas');
   for (const note of notes) {
     // Todo se inserta con textContent: aunque una nota contenga "<script>", se muestra como texto y no se ejecuta.
     const item = document.createElement('li');
@@ -14,13 +22,21 @@ function render(notes) {
     title.textContent = note.title;
     const body = document.createElement('p');
     body.textContent = note.body;
+
+    const foot = document.createElement('div');
+    foot.className = 'foot';
+    const time = document.createElement('time');
+    const created = when(note.createdAt);
+    if (created) { time.dateTime = created.toISOString(); time.textContent = dateFormat.format(created); }
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'danger';
     remove.textContent = 'Borrar';
     remove.setAttribute('aria-label', 'Borrar la nota ' + note.title);
     remove.addEventListener('click', () => removeNote(note.id));
-    item.append(title, body, remove);
+    foot.append(time, remove);
+
+    item.append(title, body, foot);
     list.append(item);
   }
 }
@@ -47,16 +63,10 @@ document.getElementById('note-form').addEventListener('submit', async (event) =>
   else say(msg, await errorText(response, 'No se pudo guardar la nota.'), 'error');
 });
 
-document.getElementById('logout').addEventListener('click', logout);
-document.getElementById('logout-all').addEventListener('click', async () => {
-  await api('/api/auth/logout-all', { method: 'POST' });
-  location.replace('index.html');
-});
-
 const me = await requireSession();
 if (me) {
-  document.getElementById('who').textContent = me.email;
-  // Mostrar el enlace es solo comodidad: la seguridad real la impone el servidor en /api/admin/**.
-  document.getElementById('admin-link').hidden = me.role !== 'ADMIN';
+  setupShell(me);
   await load();
+  // La entrada escalonada solo se ve al abrir la página; al guardar o borrar, la lista no vuelve a animarse.
+  setTimeout(() => list.classList.remove('enter'), 900);
 }

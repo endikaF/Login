@@ -3,21 +3,37 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#ff6a1a">
   <title>Verificar email · Tablero de notas</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111317'/%3E%3Ccircle cx='8' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Ccircle cx='16' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Ccircle cx='24' cy='7' r='1.6' fill='%23ff6a1a'/%3E%3Cpath d='M8 14h16M8 19h16M8 24h9' stroke='%23ff6a1a' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
   <script type="module" src="js/verify.js"></script>
 </head>
 <body>
   <a class="skip" href="#main">Saltar al contenido</a>
-  <header><h1>Verificar email</h1></header>
-  <main id="main">
-    <section class="card" aria-labelledby="t">
-      <h2 id="t">Confirma tu dirección de correo</h2>
-      <button id="confirm" type="button">Verificar mi email</button>
-      <p id="msg" class="msg" aria-live="polite"></p>
-      <p><a href="index.html">Ir al acceso</a></p>
-    </section>
-  </main>
+  <div class="auth">
+    <aside class="auth-cover compact">
+      <a class="brand" href="index.html">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><circle class="hole" cx="8" cy="7" r="1.6"/><circle class="hole" cx="16" cy="7" r="1.6"/><circle class="hole" cx="24" cy="7" r="1.6"/><path class="rule" d="M8 14h16M8 19h16M8 24h9"/></svg>
+        <span>Tablero de notas</span>
+      </a>
+      <div>
+        <h1>Un último paso.</h1>
+        <p class="lede">Confirma que este email es tuyo para activar la cuenta.</p>
+      </div>
+    </aside>
+
+    <main id="main" class="auth-main">
+      <div class="auth-panel">
+        <section class="sheet" aria-labelledby="t">
+          <h2 id="t">Confirma tu dirección de correo</h2>
+          <button id="confirm" type="button">Verificar mi email</button>
+          <p id="msg" class="msg" aria-live="polite"></p>
+        </section>
+        <a class="back-link" href="index.html">Ir al acceso</a>
+      </div>
+    </main>
+  </div>
 </body>
 </html>

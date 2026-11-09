@@ -54,6 +54,28 @@ export async function logout() {
   location.replace('index.html');
 }
 
+/** Cabecera común de las páginas con sesión: usuario, avatar, enlace de administración, cierres de sesión y menú de cuenta. */
+export function setupShell(me) {
+  document.getElementById('who')?.append(me.email); // textContent equivalente: nunca se interpreta como HTML
+  const avatar = document.getElementById('avatar');
+  if (avatar) avatar.textContent = (me.email || '?').charAt(0);
+  // Mostrar el enlace es solo comodidad: la seguridad real la impone el servidor en /api/admin/**.
+  const adminLink = document.getElementById('admin-link');
+  if (adminLink) adminLink.hidden = me.role !== 'ADMIN';
+  document.getElementById('logout')?.addEventListener('click', logout);
+  document.getElementById('logout-all')?.addEventListener('click', async () => {
+    await api('/api/auth/logout-all', { method: 'POST' });
+    location.replace('index.html');
+  });
+  const menu = document.querySelector('details.account');
+  if (menu) {
+    document.addEventListener('click', (event) => { if (!menu.contains(event.target)) menu.open = false; });
+    menu.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && menu.open) { menu.open = false; menu.querySelector('summary').focus(); }
+    });
+  }
+}
+
 /** Muestra un mensaje accesible: los errores se anuncian con role=alert, el resto con role=status. */
 export function say(element, text, kind = 'ok') {
   element.textContent = text; // textContent y no HTML: el texto no se interpreta como HTML

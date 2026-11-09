@@ -9,6 +9,29 @@ let mfaToken = null;
 const registerForm = document.getElementById('register-form');
 const registerMsg = document.getElementById('register-msg');
 
+// Selector «Entrar / Crear cuenta»: patrón de pestañas con flechas del teclado (solo la pestaña activa entra en el orden de Tab).
+const seg = document.getElementById('seg');
+const tabs = [document.getElementById('tab-login'), document.getElementById('tab-register')];
+const panels = [document.getElementById('panel-login'), document.getElementById('panel-register')];
+
+function selectTab(index, { focus = false } = {}) {
+  tabs.forEach((tab, i) => {
+    tab.setAttribute('aria-selected', String(i === index));
+    tab.tabIndex = i === index ? 0 : -1;
+    panels[i].hidden = i !== index;
+  });
+  if (focus) tabs[index].focus();
+}
+tabs.forEach((tab, i) => {
+  tab.addEventListener('click', () => selectTab(i));
+  tab.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      event.preventDefault();
+      selectTab(i === 0 ? 1 : 0, { focus: true });
+    }
+  });
+});
+
 async function post(path, body) {
   return fetch(path, {
     method: 'POST',
@@ -31,7 +54,8 @@ loginForm.addEventListener('submit', async (event) => {
       // Contraseña correcta, pero hace falta el segundo factor. El token temporal solo vive en memoria.
       mfaToken = data.mfaToken;
       loginForm.reset();
-      loginForm.hidden = true;
+      seg.hidden = true;
+      panels.forEach((panel) => { panel.hidden = true; });
       mfaSection.hidden = false;
       say(loginMsg, '', 'ok');
       document.getElementById('mfa-code').focus();

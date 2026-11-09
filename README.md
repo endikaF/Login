@@ -354,6 +354,13 @@ Pedir un enlace nuevo anula los anteriores sin usar.
 HTML, CSS y JavaScript puros en `src/main/resources/static/`, **sin nada en línea** para cumplir la CSP
 (scripts como módulos externos, estilos en `css/style.css`).
 
+**Diseño visual.** La interfaz imita una libreta: cabecera y panel de acceso en naranja de cubierta con tinta negra (nunca
+blanco sobre naranja, por contraste), lienzo de papel cuadriculado con celda fija de 24 px y hojas con microperforación en el
+borde superior. Claro y oscuro según el sistema, movimiento reducido respetado y tipografía del sistema (la CSP no permite
+fuentes externas). Toda la lógica común de la cabecera (usuario, avatar, menú de cuenta, cierres de sesión) está en
+`setupShell()` de `js/api.js`. [TRADE-OFF] Sin fuentes web propias para no tocar la CSP; en producción se alojarían en el
+mismo origen y se añadiría `font-src 'self'`.
+
 | Página | Para qué |
 |---|---|
 | `index.html` | Iniciar sesión y crear cuenta |
